@@ -88,15 +88,15 @@ fn print_system_info(
   write!(
     cursor,
     "
-    {cyan}     ▟█▖    {blue}▝█▙ ▗█▛         {user_info} ~{reset}
-    {cyan}  ▗▄▄▟██▄▄▄▄▄{blue}▝█▙█▛  {cyan}▖       {cyan}  {blue}System{reset}        {os_name}
-    {cyan}  ▀▀▀▀▀▀▀▀▀▀▀▘{blue}▝██  {cyan}▟█▖      {cyan}  {blue}Kernel{reset}        {kernel_version}
-    {blue}     ▟█▛       {blue}▝█▘{cyan}▟█▛       {cyan}  {blue}Shell{reset}         {shell}
-    {blue}▟█████▛          {cyan}▟█████▛    {cyan}  {blue}Uptime{reset}        {uptime}
-    {blue}   ▟█▛{cyan}▗█▖       {cyan}▟█▛         {cyan}  {blue}Desktop{reset}       {desktop}
-    {blue}  ▝█▛  {cyan}██▖{blue}▗▄▄▄▄▄▄▄▄▄▄▄      {cyan}󰍛  {blue}Memory{reset}        {memory_usage}
-    {blue}   ▝  {cyan}▟█▜█▖{blue}▀▀▀▀▀██▛▀▀▘      {cyan}󱥎  {blue}Storage (/){reset}   {storage}
-    {cyan}     ▟█▘ ▜█▖    {blue}▝█▛         {cyan}  {blue}Colors{reset}        {colors}\n\n"
+    {blue}     ▟█▖    {cyan}▝█▙ ▗█▛         {user_info} ~{reset}
+    {blue}  ▗▄▄▟██▄▄▄▄▄{cyan}▝█▙█▛  {blue}▖       {cyan}  {blue}System{reset}        {os_name}
+    {blue}  ▀▀▀▀▀▀▀▀▀▀▀▘{cyan}▝██  {blue}▟█▖      {cyan}  {blue}Kernel{reset}        {kernel_version}
+    {cyan}     ▟█▛       {cyan}▝█▘{blue}▟█▛       {cyan}  {blue}Shell{reset}         {shell}
+    {cyan}▟█████▛          {blue}▟█████▛    {cyan}  {blue}Uptime{reset}        {uptime}
+    {cyan}   ▟█▛{blue}▗█▖       {blue}▟█▛         {cyan}  {blue}Desktop{reset}       {desktop}
+    {cyan}  ▝█▛  {blue}██▖{cyan}▗▄▄▄▄▄▄▄▄▄▄▄      {cyan}󰍛  {blue}Memory{reset}        {memory_usage}
+    {cyan}   ▝  {blue}▟█▜█▖{cyan}▀▀▀▀▀██▛▀▀▘      {cyan}󱥎  {blue}Storage (/){reset}   {storage}
+    {blue}     ▟█▘ ▜█▖    {cyan}▝█▛         {cyan}  {blue}Colors{reset}        {colors}\n\n"
   )?;
 
   let len = cursor.position() as usize;
