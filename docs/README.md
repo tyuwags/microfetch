@@ -10,7 +10,7 @@
   <p>Microscopic fetch tool in Rust, for NixOS systems, with special emphasis on speed</p>
   <br/>
   <a href="#synopsis">Synopsis</a><br/>
-  <a href="#features">Features</a> | <a href="#motivation">Motivation</a><br/> | <a href="#benchmarks">Benchmarks</a><br/>
+  <a href="#features">Features</a> | <a href="#motivation">Motivation</a> | <a href="#benchmarks">Benchmarks</a><br/>
   <a href="#installation">Installation</a>
   <br/>
 </div>
@@ -27,11 +27,13 @@ communities. Aims to replace [fastfetch] on my personal system, but
 on your system: it is pretty _[fast](#benchmarks)_...
 
 <p align="center">
+  <br/>
   <img
     alt="latest demo"
-    src="./.github/assets/demo.png"
-    width="850px"
+    src="./assets/demo.png"
+    width="800px"
   >
+  <br/>
 </p>
 
 ## Features
@@ -55,9 +57,13 @@ on your system: it is pretty _[fast](#benchmarks)_...
   - Shell Colors
 - Did I mention fast?
 - Respects [`NO_COLOR` spec](https://no-color.org/)
+- Funny [^2]
 
 [^1]: With the Mold linker, which is enabled by default in the Flake package,
     the binary size is roughly 350kb. That's nearly 20kb reduction in size :)
+
+[^2]: I don't know how else to describe the (unhealthy) amount of handwritten
+    assembly that was written in order to make Microfetch faster.
 
 ## Motivation
 
@@ -87,14 +93,15 @@ solve a technical problem. The "problem" Microfetch solves is entirely
 self-imposed. On the matter of _size_, the project is written in Rust, which
 comes at the cost of "bloated" dependency trees and the increased build times,
 but we make an extended effort to keep the dependencies minimal and build times
-managable. The latter is also very easily mitigated with Nix's binary cache
+manageable. The latter is also very easily mitigated with Nix's binary cache
 systems. Since Microfetch is already in Nixpkgs, you are recommended to use it
 to utilize the binary cache properly. The usage of Rust _is_ nice, however,
 since it provides us with incredible tooling and a very powerful language that
 allows for Microfetch to be as fast as possible. ~~Sure C could've been used
 here as well, but do you think I hate myself?~~ Microfetch now features
 handwritten assembly to unsafely optimize some areas. In hindsight you all
-should have seen this coming. Is it faster? Yes.
+should have seen this coming. Is it faster? Yes. Should you use this? If you
+want to.
 
 Also see: [Rube-Goldmark Machine]
 
@@ -128,8 +135,18 @@ up to date, but I will try to update the numbers as I make Microfetch faster.
 
 The point stands that Microfetch is significantly faster than every other fetch
 tool I have tried. This is to be expected, of course, since Microfetch is
-designed _explicitly_ for speed and makes some tradeoffs to achieve it's
+designed _explicitly_ for speed and makes some tradeoffs to achieve its
 signature speed.
+
+> [!IMPORTANT]
+> Some tools are excluded. Yes, I know. If you think they are important and thus
+> should be covered in the benchmarks, feel free to create an issue. The purpose
+> of this benchmarks section is not to badmouth other projects, but to
+> demonstrate how much faster Microfetch is in comparison. Obviously Microfetch
+> is designed to be small (in the sense of scope) and fast (in every definition
+> of the word) so I speak of Microfetch's speed as a fact rather than an
+> advantage. Reddit has a surprising ability to twist words and misunderstand
+> ideals.
 
 ### Benchmarking Individual Functions
 
@@ -169,21 +186,27 @@ performance regressions.
 ## Installation
 
 > [!NOTE]
-> You will need a Nerdfonts patched font installed, and for your terminal
-> emulator to support said font. Microfetch uses nerdfonts glyphs by default,
+> You will need a Nerd Fonts patched font installed, and for your terminal
+> emulator to support said font. Microfetch uses Nerd Fonts glyphs by default,
 > but this can be changed by [patching the program](#customizing).
 
 Microfetch is packaged in [nixpkgs](https://github.com/nixos/nixpkgs). It can be
 installed by adding `pkgs.microfetch` to your `environment.systemPackages`.
-Additionally, you can try out Microfetch in a Nix shell.
+Additionally, you can try out Microfetch in a Nix shell or install it using
+flakes on non-NixOS systems.
 
 ```bash
+# Enter a Nix shell with Microfetch; this will be lost on the next GC
 nix shell nixpkgs#microfetch
+
+# Install Microfetch globally; this will be kept on GC
+nix profile add nixpkgs#microfetch
 ```
 
 Or run it directly with `nix run`
 
 ```bash
+# Run Microfetch from Nixpkgs. Subsequent runs will be faster.
 nix run nixpkgs#microfetch
 ```
 
@@ -200,15 +223,16 @@ have to be?
 
 ## Customizing
 
-You can't.
+You can't*.
 
 ### Why?
 
-Customization, of most kinds, are expensive: I could try reading environment
+Customization, of most kinds, is "expensive": I could try reading environment
 variables, parse command-line arguments or read a configuration file to allow
 configuring various fields but those inflate execution time and the resource
 consumption by a lot. Since Microfetch is closer to a code golf challenge than a
-program that attempts to fill a gap, I have elected not to make this trade.
+program that attempts to fill a gap, I have elected not to make this trade. This
+is, of course, not without a solution.
 
 ### Really?
 
@@ -217,13 +241,13 @@ program that attempts to fill a gap, I have elected not to make this trade.
 
 To be fair, you _can_ customize Microfetch by, well, patching it. It is
 certainly not the easiest way of doing so but if you are planning to change
-something in Microfetch, patching is the best way to go. It will also the only
-way that does not compromise on speed, unless you patch in bad code. Various
-users have adapted Microfetch to their distribution by patching the
-[main module] and inserting the logo of their choice. This is also the best way
-to go if you plan to make small changes. If your changes are not small, you
-might want to look for a program that is designed to be customizable; Microfetch
-is built for maximum performance.
+something in Microfetch, patching is the best way to go. It will also be the
+only way that does not compromise on speed, unless you patch in bad code.
+Various users have adapted Microfetch to their distribution of choice by
+patching the [main module] and inserting the logo of their choice. This is also
+the best way to go if you plan to make small changes. If your changes are not
+small, you might want to look for a program that is designed to be customizable;
+Microfetch is built for maximum performance and little else.
 
 The Nix package allows passing patches in a streamlined manner by passing
 `.overrideAttrs` to the derivation. You can apply your patches in `patches` and
