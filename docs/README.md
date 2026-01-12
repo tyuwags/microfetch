@@ -210,16 +210,25 @@ Or run it directly with `nix run`
 nix run nixpkgs#microfetch
 ```
 
-Non-Nix users will have to build Microfetch with `cargo`. It is not published
-anywhere but I imagine you can use `cargo install --git` to install it from
-source.
+[crates.io]: https://crates.io/crates/microfetch
+
+Non-Nix users, if they plan to run this for some reason, will need to build
+Microfetch from source or install it with `cargo`. Microfetch is published on
+[crates.io] and can be installed with `cargo install`.
 
 ```bash
-cargo install --git https://github.com/notashelf/microfetch.git
+# Get Microfetch from crates.io
+cargo install microfetch
 ```
 
-Microfetch is _currently_ not available anywhere else. Though, does it _really_
-have to be?
+### Other Distros
+
+<!-- Remove & replace with "unofficial" warning if adding distro-specific instructions -->
+
+To my knowledge, there is no package for (nor a reason to package) Microfetch
+but if you run a patched version for your distribution, feel free to leave your
+repository (AUR, COPR, etc.) here as reference for those that might be
+interested in Microfetch tailored to their distributions.
 
 ## Customizing
 
