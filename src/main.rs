@@ -1,18 +1,11 @@
-mod colors;
-mod desktop;
-mod release;
-mod syscall;
-mod system;
-mod uptime;
-
 use std::io::{self, Cursor, Write};
 
-pub use microfetch_lib::UtsName;
-
-use crate::{
-  colors::print_dots,
+use microfetch_lib::{
+  UtsName,
+  colors::{COLORS, print_dots},
   desktop::get_desktop_info,
   release::{get_os_pretty_name, get_system_info},
+  syscall::sys_write,
   system::{
     get_memory_usage,
     get_root_disk_usage,
@@ -64,8 +57,6 @@ struct Fields {
 fn print_system_info(
   fields: &Fields,
 ) -> Result<(), Box<dyn std::error::Error>> {
-  use crate::colors::COLORS;
-
   let Fields {
     user_info,
     os_name,
@@ -102,7 +93,7 @@ fn print_system_info(
   let len =
     usize::try_from(cursor.position()).expect("cursor position fits usize");
   // Direct syscall to avoid stdout buffering allocation
-  let written = unsafe { syscall::sys_write(1, buf.as_ptr(), len) };
+  let written = unsafe { sys_write(1, buf.as_ptr(), len) };
   if written < 0 {
     return Err(io::Error::last_os_error().into());
   }
