@@ -101,12 +101,15 @@ fn print_system_info(
 
   let len = cursor.position() as usize;
   // Direct syscall to avoid stdout buffering allocation
-  let written = unsafe { libc::write(libc::STDOUT_FILENO, buf.as_ptr().cast(), len) };
+  let written = unsafe { syscall::sys_write(1, buf.as_ptr(), len) };
   if written < 0 {
     return Err(io::Error::last_os_error().into());
   }
   if written as usize != len {
-    return Err(io::Error::new(io::ErrorKind::WriteZero, "partial write to stdout").into());
+    return Err(
+      io::Error::new(io::ErrorKind::WriteZero, "partial write to stdout")
+        .into(),
+    );
   }
   Ok(())
 }
