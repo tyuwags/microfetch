@@ -157,12 +157,12 @@ pub fn get_memory_usage() -> Result<String, io::Error> {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    let total_memory_gb = total_memory_kb as f64 / 1024.0 / 1024.0;
+    let total_gb = total_memory_kb as f64 / 1024.0 / 1024.0;
     #[allow(clippy::cast_precision_loss)]
-    let available_memory_gb = available_memory_kb as f64 / 1024.0 / 1024.0;
-    let used_memory_gb = total_memory_gb - available_memory_gb;
+    let available_gb = available_memory_kb as f64 / 1024.0 / 1024.0;
+    let used_memory_gb = total_gb - available_gb;
 
-    Ok((used_memory_gb, total_memory_gb))
+    Ok((used_memory_gb, total_gb))
   }
 
   let (used_memory, total_memory) = parse_memory_info()?;

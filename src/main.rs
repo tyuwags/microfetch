@@ -99,12 +99,14 @@ fn print_system_info(
     {blue}     ▟█▘ ▜█▖    {cyan}▝█▛         {cyan}  {blue}Colors{reset}        {colors}\n\n"
   )?;
 
-  let len = cursor.position() as usize;
+  let len =
+    usize::try_from(cursor.position()).expect("cursor position fits usize");
   // Direct syscall to avoid stdout buffering allocation
   let written = unsafe { syscall::sys_write(1, buf.as_ptr(), len) };
   if written < 0 {
     return Err(io::Error::last_os_error().into());
   }
+  #[allow(clippy::cast_sign_loss)] // non-negative verified by the guard above
   if written as usize != len {
     return Err(
       io::Error::new(io::ErrorKind::WriteZero, "partial write to stdout")
