@@ -1,18 +1,19 @@
-use std::{ffi::CStr, fmt::Write as _, io, mem::MaybeUninit};
+use std::{ffi::OsStr, fmt::Write as _, io, mem::MaybeUninit};
 
-use crate::{UtsName, colors::COLORS, syscall::read_file_fast};
+use crate::{
+  UtsName,
+  colors::COLORS,
+  syscall::{StatfsBuf, read_file_fast, sys_statfs},
+};
 
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn get_username_and_hostname(utsname: &UtsName) -> String {
-  let username = unsafe {
-    let ptr = libc::getenv(c"USER".as_ptr());
-    if ptr.is_null() {
-      "unknown_user"
-    } else {
-      CStr::from_ptr(ptr).to_str().unwrap_or("unknown_user")
-    }
-  };
+  let username_os = std::env::var_os("USER");
+  let username = username_os
+    .as_deref()
+    .and_then(OsStr::to_str)
+    .unwrap_or("unknown_user");
   let hostname = utsname.nodename().to_str().unwrap_or("unknown_host");
 
   let capacity = COLORS.yellow.len()
@@ -38,16 +39,13 @@ pub fn get_username_and_hostname(utsname: &UtsName) -> String {
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn get_shell() -> String {
-  unsafe {
-    let ptr = libc::getenv(c"SHELL".as_ptr());
-    if ptr.is_null() {
-      return "unknown_shell".into();
-    }
-
-    let bytes = CStr::from_ptr(ptr).to_bytes();
-    let start = bytes.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
-    let name = std::str::from_utf8_unchecked(&bytes[start..]);
-    name.into()
+  let shell_os = std::env::var_os("SHELL");
+  let shell = shell_os.as_deref().and_then(OsStr::to_str).unwrap_or("");
+  let start = shell.rfind('/').map_or(0, |i| i + 1);
+  if shell.is_empty() {
+    "unknown_shell".into()
+  } else {
+    shell[start..].into()
   }
 }
 
@@ -59,15 +57,16 @@ pub fn get_shell() -> String {
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 #[allow(clippy::cast_precision_loss)]
 pub fn get_root_disk_usage() -> Result<String, io::Error> {
-  let mut vfs = MaybeUninit::uninit();
+  let mut vfs = MaybeUninit::<StatfsBuf>::uninit();
   let path = b"/\0";
 
-  if unsafe { libc::statvfs(path.as_ptr().cast(), vfs.as_mut_ptr()) } != 0 {
+  if unsafe { sys_statfs(path.as_ptr(), vfs.as_mut_ptr()) } != 0 {
     return Err(io::Error::last_os_error());
   }
 
   let vfs = unsafe { vfs.assume_init() };
-  let block_size = vfs.f_bsize;
+  #[allow(clippy::cast_sign_loss)]
+  let block_size = vfs.f_bsize as u64;
   let total_blocks = vfs.f_blocks;
   let available_blocks = vfs.f_bavail;
 
@@ -158,12 +157,12 @@ pub fn get_memory_usage() -> Result<String, io::Error> {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    let total_memory_gb = total_memory_kb as f64 / 1024.0 / 1024.0;
+    let total_gb = total_memory_kb as f64 / 1024.0 / 1024.0;
     #[allow(clippy::cast_precision_loss)]
-    let available_memory_gb = available_memory_kb as f64 / 1024.0 / 1024.0;
-    let used_memory_gb = total_memory_gb - available_memory_gb;
+    let available_gb = available_memory_kb as f64 / 1024.0 / 1024.0;
+    let used_memory_gb = total_gb - available_gb;
 
-    Ok((used_memory_gb, total_memory_gb))
+    Ok((used_memory_gb, total_gb))
   }
 
   let (used_memory, total_memory) = parse_memory_info()?;

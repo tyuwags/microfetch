@@ -37,8 +37,8 @@ impl Colors {
 }
 
 pub static COLORS: LazyLock<Colors> = LazyLock::new(|| {
-  const NO_COLOR: *const libc::c_char = c"NO_COLOR".as_ptr();
-  let is_no_color = unsafe { !libc::getenv(NO_COLOR).is_null() };
+  // Only presence matters; value is irrelevant per the NO_COLOR spec
+  let is_no_color = std::env::var_os("NO_COLOR").is_some();
   Colors::new(is_no_color)
 });
 

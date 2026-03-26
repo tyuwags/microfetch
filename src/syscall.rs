@@ -123,6 +123,63 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
   }
 }
 
+/// Direct syscall to write to a file descriptor
+///
+/// # Returns
+///
+/// Number of bytes written or -1 on error
+///
+/// # Safety
+///
+/// The caller must ensure that:
+///
+/// - `buf` points to a valid readable buffer of at least `count` bytes
+/// - `fd` is a valid open file descriptor
+#[inline]
+#[must_use]
+pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "syscall",
+      in("rax") 1i64,  // SYS_write
+      in("rdi") fd,
+      in("rsi") buf,
+      in("rdx") count,
+      lateout("rax") ret,
+      lateout("rcx") _,
+      lateout("r11") _,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
+  }
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "svc #0",
+      in("x8") 64i64,  // SYS_write
+      in("x0") fd,
+      in("x1") buf,
+      in("x2") count,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
+  }
+  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+  {
+    compile_error!("Unsupported architecture for inline assembly syscalls");
+  }
+}
+
 /// Direct syscall to close a file descriptor
 ///
 /// # Safety
@@ -155,6 +212,149 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
       "svc #0",
       in("x8") 57i64,  // SYS_close
       in("x0") fd,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+  {
+    compile_error!("Unsupported architecture for inline assembly syscalls");
+  }
+}
+
+/// Raw buffer for the `uname(2)` syscall.
+///
+/// Linux ABI hasfive fields of `[i8; 65]`: sysname, nodename, release, version,
+/// machine. The `domainname` field (GNU extension, `[i8; 65]`) follows but is
+/// not used, nor any useful to us here.
+#[repr(C)]
+#[allow(dead_code)]
+pub struct UtsNameBuf {
+  pub sysname:    [i8; 65],
+  pub nodename:   [i8; 65],
+  pub release:    [i8; 65],
+  pub version:    [i8; 65],
+  pub machine:    [i8; 65],
+  pub domainname: [i8; 65], // GNU extension, included for correct struct size
+}
+
+/// Direct `uname(2)` syscall
+///
+/// # Returns
+///
+/// 0 on success, negative on error
+///
+/// # Safety
+///
+/// The caller must ensure `buf` points to a valid `UtsNameBuf`.
+#[inline]
+#[allow(dead_code)]
+pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "syscall",
+      in("rax") 63i64,  // SYS_uname
+      in("rdi") buf,
+      lateout("rax") ret,
+      lateout("rcx") _,
+      lateout("r11") _,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "svc #0",
+      in("x8") 160i64,  // SYS_uname
+      in("x0") buf,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+  {
+    compile_error!("Unsupported architecture for inline assembly syscalls");
+  }
+}
+
+/// Raw buffer for the `statfs(2)` syscall.
+///
+/// Linux ABI (`x86_64` and `aarch64`): the fields we use are at the same
+/// offsets on both architectures. Only the fields needed for disk usage are
+/// declared; the remainder of the 120-byte struct is covered by `_pad`.
+#[repr(C)]
+pub struct StatfsBuf {
+  pub f_type:    i64,
+  pub f_bsize:   i64,
+  pub f_blocks:  u64,
+  pub f_bfree:   u64,
+  pub f_bavail:  u64,
+  pub f_files:   u64,
+  pub f_ffree:   u64,
+  pub f_fsid:    [i32; 2],
+  pub f_namelen: i64,
+  pub f_frsize:  i64,
+  pub f_flags:   i64,
+
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _pad: [i64; 4],
+}
+
+/// Direct `statfs(2)` syscall
+///
+/// # Returns
+///
+/// 0 on success, negative errno on error
+///
+/// # Safety
+///
+/// The caller must ensure that:
+///
+/// - `path` points to a valid null-terminated string
+/// - `buf` points to a valid `StatfsBuf`
+#[inline]
+pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "syscall",
+      in("rax") 137i64,  // SYS_statfs
+      in("rdi") path,
+      in("rsi") buf,
+      lateout("rax") ret,
+      lateout("rcx") _,
+      lateout("r11") _,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "svc #0",
+      in("x8") 43i64,  // SYS_statfs
+      in("x0") path,
+      in("x1") buf,
       lateout("x0") ret,
       options(nostack)
     );

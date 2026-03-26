@@ -1,27 +1,22 @@
-use std::{ffi::CStr, fmt::Write};
+use std::{ffi::OsStr, fmt::Write};
 
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn get_desktop_info() -> String {
-  // Retrieve the environment variables and handle Result types
-  let desktop_str = unsafe {
-    let ptr = libc::getenv(c"XDG_CURRENT_DESKTOP".as_ptr());
-    if ptr.is_null() {
-      "Unknown"
-    } else {
-      let s = CStr::from_ptr(ptr).to_str().unwrap_or("Unknown");
-      s.strip_prefix("none+").unwrap_or(s)
-    }
-  };
+  let desktop_os = std::env::var_os("XDG_CURRENT_DESKTOP");
+  let session_os = std::env::var_os("XDG_SESSION_TYPE");
 
-  let backend_str = unsafe {
-    let ptr = libc::getenv(c"XDG_SESSION_TYPE".as_ptr());
-    if ptr.is_null() {
-      "Unknown"
-    } else {
-      let s = CStr::from_ptr(ptr).to_str().unwrap_or("Unknown");
-      if s.is_empty() { "Unknown" } else { s }
-    }
+  let desktop_raw = desktop_os
+    .as_deref()
+    .and_then(OsStr::to_str)
+    .unwrap_or("Unknown");
+  let desktop_str = desktop_raw.strip_prefix("none+").unwrap_or(desktop_raw);
+
+  let session_raw = session_os.as_deref().and_then(OsStr::to_str).unwrap_or("");
+  let backend_str = if session_raw.is_empty() {
+    "Unknown"
+  } else {
+    session_raw
   };
 
   // Pre-calculate capacity: desktop_len + " (" + backend_len + ")"
