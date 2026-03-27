@@ -1,5 +1,31 @@
-# Link with Mold, and without libc! We use nostartfiles to avoid the C runtime
+# Use a linker wrapper that invokes mold then strips junk sections with objcopy.
+# mold cannot discard .eh_frame/.dynstr/.comment via linker scripts, so we do
+# it as a post-link step.
 # See:
 #  <https://github.com/rui314/mold?tab=readme-ov-file#how-to-use>
 [target.'cfg(target_os = "linux")']
-rustflags = [ "-C", "link-arg=-fuse-ld=mold", "-C", "link-arg=-nostartfiles" ]
+linker = "scripts/ld-wrapper"
+rustflags = [
+  # No C runtime, we provide _start ourselves
+  "-C",
+  "link-arg=-nostartfiles",
+  # Fully static,  no dynamic linker, no .interp/.dynsym/.dynamic overhead
+  "-C",
+  "link-arg=-static",
+  # Static PIE is incompatible with -static :(
+  "-C",
+  "relocation-model=static",
+  # Suppress .eh_frame emission from our own codegen (does not cover compiler_builtins;
+  # those remnants are removed by the linker wrapper via objcopy post-link)
+  "-C",
+  "force-unwind-tables=no",
+  # Linker flags
+  "-C",
+  "link-arg=-Wl,--gc-sections",   # remove unreferenced input sections
+  "-C",
+  "link-arg=-Wl,--strip-all",     # strip all symbol table entries
+  "-C",
+  "link-arg=-Wl,--build-id=none", # omit the .note.gnu.build-id section
+  "-C",
+  "link-arg=-Wl,-z,norelro",      # disable RELRO (removes relro_padding)
+]

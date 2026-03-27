@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+# Invoke mold, then strip junk sections from the output binary with objcopy.
+# This (more or less) removes sections that mold cannot discard itself, suck as:
+#  - .eh_frame / .eh_frame_hdr  - unwind tables from compiler_builtins
+#  - dynstr                     - mold emits this, even for fully static binaries
+#  - .comment                   - compiler version string
+#
+#  We forward everything to mold via -fuse-ld, then post-process the output in place.
+
+set -eu
+
+# Locate the output file
+OUTPUT=""
+prev=""
+for arg in "$@"; do
+	if [ "$prev" = "-o" ]; then
+		OUTPUT="$arg"
+		break
+	fi
+	prev="$arg"
+done
+
+# Invoke mold via the cc driver, forward all original arguments
+cc -fuse-ld=mold "$@"
+
+# Remove sections that mold cannot discard
+if [ -n "$OUTPUT" ] && [ -f "$OUTPUT" ]; then
+	objcopy \
+		--remove-section=.eh_frame \
+		--remove-section=.eh_frame_hdr \
+		--remove-section=.dynstr \
+		--remove-section=.comment \
+		"$OUTPUT"
+fi

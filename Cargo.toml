@@ -11,15 +11,15 @@ version      = "0.4.13"
 
 [workspace.dependencies]
 microfetch-alloc = { path = "./crates/alloc" }
-microfetch-asm = { path = "./crates/asm" }
-microfetch-lib = { path = "./crates/lib" }
+microfetch-asm   = { path = "./crates/asm" }
+microfetch-lib   = { path = "./crates/lib" }
 
 criterion                 = { default-features = false, features = [ "cargo_bench_support" ], version = "0.8.2" }
 criterion-cycles-per-byte = "0.8.0"
 
 [profile.dev]
 opt-level = 1
-panic = "abort"
+panic     = "abort"
 
 [profile.release]
 codegen-units = 1
