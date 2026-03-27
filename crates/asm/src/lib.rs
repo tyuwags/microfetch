@@ -70,13 +70,14 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
 
 /// Direct syscall to read from a file descriptor
 ///
-/// # Returns n
+/// # Returns
 ///
 /// Number of bytes read or -1 on error
 ///
 /// # Safety
 ///
-/// The caller must ensure:
+/// The caller must ensure that:
+///
 /// - `buf` points to a valid writable buffer of at least `count` bytes
 /// - `fd` is a valid open file descriptor
 #[inline]
@@ -95,11 +96,13 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
       lateout("r11") _,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as isize
     }
   }
+
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
@@ -112,11 +115,13 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
       lateout("x0") ret,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as isize
     }
   }
+
   #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
   {
     compile_error!("Unsupported architecture for inline assembly syscalls");
@@ -152,11 +157,13 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
       lateout("r11") _,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as isize
     }
   }
+
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
@@ -169,11 +176,13 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
       lateout("x0") ret,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as isize
     }
   }
+
   #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
   {
     compile_error!("Unsupported architecture for inline assembly syscalls");
@@ -184,7 +193,7 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
 ///
 /// # Safety
 ///
-/// The caller must ensure `fd` is a valid open file descriptor
+/// The caller must ensure that `fd` is a valid open file descriptor
 #[inline]
 #[must_use]
 pub unsafe fn sys_close(fd: i32) -> i32 {
@@ -205,6 +214,7 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
       ret as i32
     }
   }
+
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
@@ -220,6 +230,7 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
       ret as i32
     }
   }
+
   #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
   {
     compile_error!("Unsupported architecture for inline assembly syscalls");
@@ -250,7 +261,7 @@ pub struct UtsNameBuf {
 ///
 /// # Safety
 ///
-/// The caller must ensure `buf` points to a valid `UtsNameBuf`.
+/// The caller must ensure that `buf` points to a valid `UtsNameBuf`.
 #[inline]
 #[allow(dead_code)]
 pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
@@ -266,11 +277,13 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
       lateout("r11") _,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as i32
     }
   }
+
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
@@ -286,6 +299,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
       ret as i32
     }
   }
+
   #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
   {
     compile_error!("Unsupported architecture for inline assembly syscalls");
@@ -342,11 +356,13 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
       lateout("r11") _,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as i32
     }
   }
+
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
@@ -358,11 +374,13 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
       lateout("x0") ret,
       options(nostack)
     );
+
     #[allow(clippy::cast_possible_truncation)]
     {
       ret as i32
     }
   }
+
   #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
   {
     compile_error!("Unsupported architecture for inline assembly syscalls");
@@ -379,7 +397,8 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
 pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> io::Result<usize> {
   const O_RDONLY: i32 = 0;
 
-  // Use stack-allocated buffer for null-terminated path (max 256 bytes)
+  // We use stack-allocated buffer for null-terminated path. The maximum
+  // is 256 bytes.
   let path_bytes = path.as_bytes();
   if path_bytes.len() >= 256 {
     return Err(io::Error::new(io::ErrorKind::InvalidInput, "Path too long"));
