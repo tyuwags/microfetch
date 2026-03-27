@@ -19,6 +19,248 @@ compile_error!(
   "Unsupported architecture: only x86_64, aarch64, and riscv64 are supported"
 );
 
+/// Copies `n` bytes from `src` to `dest`.
+///
+/// # Safety
+///
+/// `dest` and `src` must be valid pointers to non-overlapping regions of
+/// memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memcpy(
+  dest: *mut u8,
+  src: *const u8,
+  n: usize,
+) -> *mut u8 {
+  for i in 0..n {
+    unsafe {
+      *dest.add(i) = *src.add(i);
+    }
+  }
+  dest
+}
+
+/// Fills memory region with a byte value.
+///
+/// # Safety
+///
+/// `s` must be a valid pointer to memory of at least `n` bytes.
+/// The value in `c` is treated as unsigned (lower 8 bits used).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+  for i in 0..n {
+    unsafe {
+      *s.add(i) = u8::try_from(c).unwrap_or(0);
+    }
+  }
+  s
+}
+
+/// Calculates the length of a null-terminated string.
+///
+/// # Safety
+///
+/// `s` must be a valid pointer to a null-terminated string.
+#[unsafe(no_mangle)]
+pub const unsafe extern "C" fn strlen(s: *const u8) -> usize {
+  let mut len = 0;
+  while unsafe { *s.add(len) } != 0 {
+    len += 1;
+  }
+  len
+}
+
+/// Function pointer type for the main application entry point.
+/// The function receives argc and argv and should return an exit code.
+pub type MainFn = unsafe extern "C" fn(i32, *const *const u8) -> i32;
+
+static mut MAIN_FN: Option<MainFn> = None;
+
+/// Register the main function to be called from the entry point.
+/// This must be called before the program starts (e.g., in a constructor).
+pub fn register_main(main_fn: MainFn) {
+  unsafe {
+    MAIN_FN = Some(main_fn);
+  }
+}
+
+/// Rust entry point called from `_start` assembly.
+///
+/// The `stack` pointer points to:
+/// `[rsp]`     = argc
+/// `[rsp+8]`   = argv[0]
+/// etc.
+///
+/// # Safety
+///
+/// The `stack` pointer must point to valid stack memory set up by the kernel
+/// AND the binary must define a `main` function with the following signature:
+///
+/// ```rust,ignore
+/// unsafe extern "C" fn main(argc: i32, argv: *const *const u8) -> i32`
+/// ```
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn entry_rust(stack: *const usize) -> i32 {
+  // Read argc and argv from stack
+  let argc = unsafe { *stack };
+  let argv = unsafe { stack.add(1).cast::<*const u8>() };
+
+  // SAFETY: argc is unlikely to exceed i32::MAX on real systems
+  let argc_i32 = i32::try_from(argc).unwrap_or(i32::MAX);
+
+  // Call the main function (defined by the binary crate)
+  unsafe { main(argc_i32, argv) }
+}
+
+// External main function that must be defined by the binary using this crate.
+// Signature: `unsafe extern "C" fn main(argc: i32, argv: *const *const u8) ->
+// i32`
+unsafe extern "C" {
+  fn main(argc: i32, argv: *const *const u8) -> i32;
+}
+
+#[cfg(target_arch = "x86_64")]
+mod entry {
+  use core::arch::naked_asm;
+
+  /// Entry point that receives stack pointer directly from kernel.
+  /// On `x86_64` Linux at program start:
+  ///
+  ///   - `[rsp]`     = argc
+  ///   - `[rsp+8]`   = argv[0]
+  ///   - `[rsp+16]`  = argv[1]
+  ///   - ...
+  ///   - `[rsp+8n]`  = NULL
+  ///   - `[rsp+8n+8]` = envp[0]
+  ///
+  /// # Safety
+  ///
+  /// This is a naked function with no prologue or epilogue. It directly
+  /// manipulates the stack pointer (`rsp`) and assumes it was called by the
+  /// kernel with a valid stack containing argc and argv. The function:
+  ///
+  ///   - Reads from `[rsp]` without validating the pointer
+  ///   - Modifies `rsp` directly (16-byte alignment)
+  ///   - Does not preserve any registers
+  ///   - Does not return normally (exits via syscall)
+  ///
+  /// This function MUST only be used as the program entry point (`_start`).
+  /// Calling it from any other context is undefined behavior. This has been
+  /// your safety notice. I WILL put UB in your Rust program.
+  #[unsafe(no_mangle)]
+  #[unsafe(naked)]
+  pub unsafe extern "C" fn _start() {
+    naked_asm!(
+      // Move stack pointer to first argument register
+      "mov rdi, rsp",
+      // Align stack to 16-byte boundary (System V AMD64 ABI requirement)
+      "and rsp, -16",
+      // Call into Rust code
+      "call {entry_rust}",
+      // Move return code to syscall argument
+      "mov rdi, rax",
+      // Exit syscall
+      "mov rax, 60",  // SYS_exit
+      "syscall",
+      entry_rust = sym super::entry_rust,
+    );
+  }
+}
+
+#[cfg(target_arch = "aarch64")]
+mod entry {
+  use core::arch::naked_asm;
+
+  /// Entry point that receives stack pointer directly from kernel.
+  /// On `aarch64` Linux at program start, the stack layout is identical
+  /// to x86_64:
+  ///
+  ///   - `[sp]`      = argc
+  ///   - `[sp+8]`    = argv[0]
+  ///   - ...
+  ///
+  /// # Safety
+  ///
+  /// This is a naked function with no prologue or epilogue. It directly
+  /// manipulates the stack pointer (`sp`) and assumes it was called by the
+  /// kernel with a valid stack containing argc and argv. The function:
+  ///
+  ///   - Reads from `[sp]` without validating the pointer
+  ///   - Modifies `sp` directly (16-byte alignment)
+  ///   - Does not preserve any registers
+  ///   - Does not return normally (exits via SVC instruction)
+  ///
+  /// This function MUST only be used as the program entry point (`_start`).
+  /// Calling it from any other context is undefined behavior.
+  #[unsafe(no_mangle)]
+  #[unsafe(naked)]
+  pub unsafe extern "C" fn _start() {
+    naked_asm!(
+      // Move stack pointer to first argument register
+      "mov x0, sp",
+      // Align stack to 16-byte boundary (AArch64 ABI requirement)
+      "and sp, sp, -16",
+      // Call into Rust code
+      "bl {entry_rust}",
+      // Move return code to syscall argument
+      "mov x0, x0",
+      // Exit syscall
+      "mov x8, 93",  // SYS_exit
+      "svc #0",
+      entry_rust = sym super::entry_rust,
+    );
+  }
+}
+
+#[cfg(target_arch = "riscv64")]
+mod entry {
+  use core::arch::naked_asm;
+
+  /// Entry point that receives stack pointer directly from kernel.
+  /// On `riscv64` Linux at program start, the stack layout is identical
+  /// to x86_64:
+  ///
+  ///   - `[sp]`      = argc
+  ///   - `[sp+8]`    = argv[0]
+  ///   - ...
+  ///
+  /// # Safety
+  ///
+  /// This is a naked function with no prologue or epilogue. It directly
+  /// manipulates the stack pointer (`sp`) and assumes it was called by the
+  /// kernel with a valid stack containing argc and argv. The function:
+  ///
+  ///   - Reads from `[sp]` without validating the pointer
+  ///   - Modifies `sp` directly (16-byte alignment)
+  ///   - Does not preserve any registers
+  ///   - Does not return normally (exits via ECALL instruction)
+  ///
+  /// This function MUST only be used as the program entry point (`_start`).
+  /// Calling it from any other context is undefined behavior.
+  #[unsafe(no_mangle)]
+  #[unsafe(naked)]
+  pub unsafe extern "C" fn _start() {
+    naked_asm!(
+      // Move stack pointer to first argument register
+      "mv a0, sp",
+      // Align stack to 16-byte boundary (RISC-V ABI requirement)
+      "andi sp, sp, -16",
+      // Call into Rust code
+      "call {entry_rust}",
+      // Move return code to syscall argument
+      "mv a0, a0",
+      // Exit syscall
+      "li a7, 93",  // SYS_exit
+      "ecall",
+      entry_rust = sym super::entry_rust,
+    );
+  }
+}
+
+// Re-export the entry point
+#[cfg(target_arch = "x86_64")] pub use entry::_start;
+#[cfg(target_arch = "aarch64")] pub use entry::_start;
+#[cfg(target_arch = "riscv64")] pub use entry::_start;
+
 /// Direct syscall to open a file
 ///
 /// # Returns
