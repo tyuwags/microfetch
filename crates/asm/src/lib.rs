@@ -55,6 +55,33 @@ pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
   s
 }
 
+/// Compares two byte sequences.
+///
+/// # Safety
+///
+/// `s1` and `s2` must be valid pointers to memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
+  for i in 0..n {
+    let a = unsafe { *s1.add(i) };
+    let b = unsafe { *s2.add(i) };
+    if a != b {
+      return i32::from(a) - i32::from(b);
+    }
+  }
+  0
+}
+
+/// Compares two byte sequences.
+///
+/// # Safety
+///
+/// `s1` and `s2` must be valid pointers to memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
+  unsafe { bcmp(s1, s2, n) }
+}
+
 /// Calculates the length of a null-terminated string.
 ///
 /// # Safety
