@@ -142,22 +142,34 @@ impl<T> Drop for OnceLock<T> {
   }
 }
 
-// Access to the environ pointer (provided by libc startup code)
-unsafe extern "C" {
-  static environ: *const *const u8;
-}
+// Store the environment pointer internally,initialized from `main()`. This
+// helps avoid the libc dependency *completely*.
+static ENVP: AtomicPtr<*const u8> = AtomicPtr::new(core::ptr::null_mut());
 
-/// Gets an environment variable by name (without using std).
+/// Initialize the environment pointer. Must be called before any `getenv()`
+/// calls. This is called from `main()` with the calculated `envp`.
 ///
 /// # Safety
 ///
-/// This function reads from the environ global which is initialized
-/// by the C runtime before `main()` is called.
+/// envp must be a valid null-terminated array of C strings, or null if
+/// no environment is available.
+#[inline]
+pub unsafe fn init_env(envp: *const *const u8) {
+  ENVP.store(envp.cast_mut(), Ordering::Release);
+}
+
+/// Gets the current environment pointer.
+#[inline]
+#[must_use]
+fn get_envp() -> *const *const u8 {
+  ENVP.load(Ordering::Acquire)
+}
+
+/// Gets an environment variable by name without using std or libc by reading
+/// from the environment pointer set by [`init_env`].
 #[must_use]
 pub fn getenv(name: &str) -> Option<&'static [u8]> {
-  // SAFETY: environ is set up by the C runtime before main() runs
-  // and remains valid for the lifetime of the program
-  let envp = unsafe { environ };
+  let envp = get_envp();
   if envp.is_null() {
     return None;
   }
@@ -237,6 +249,7 @@ impl UtsName {
     if unsafe { sys_uname(uts.as_mut_ptr()) } != 0 {
       return Err(Error::last_os_error());
     }
+
     Ok(Self(unsafe { uts.assume_init() }))
   }
 
