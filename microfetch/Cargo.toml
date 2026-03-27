@@ -11,12 +11,12 @@ repository             = "https://github.com/notashelf/microfetch"
 publish                = false
 
 [dependencies]
+hotpath                  = { optional = true, version = "0.14.0" }
 microfetch-lib.workspace = true
 
 [features]
-hotpath       = [ "microfetch-lib/hotpath" ]
-hotpath-alloc = [ "microfetch-lib/hotpath-alloc" ]
-hotpath-off   = [ "microfetch-lib/hotpath-off" ]
+hotpath       = [ "dep:hotpath" ]
+hotpath-alloc = [ "hotpath/hotpath-alloc" ]
 
 [lints]
 workspace = true

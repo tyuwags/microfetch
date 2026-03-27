@@ -13,12 +13,14 @@ use std::{
 pub use microfetch_asm as syscall;
 pub use microfetch_asm::{
   StatfsBuf,
+  SysInfo,
   UtsNameBuf,
   read_file_fast,
   sys_close,
   sys_open,
   sys_read,
   sys_statfs,
+  sys_sysinfo,
   sys_uname,
   sys_write,
 };

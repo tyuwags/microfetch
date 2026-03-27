@@ -5,10 +5,19 @@
 //! What do you mean I wasted two whole hours to make the program only 100µs
 //! faster?
 //!
-//! Supports `x86_64` and `aarch64` architectures. Riscv support will be
-//! implemented when and ONLY WHEN I can be bothered to work on it.
+//! Supports `x86_64`, `aarch64`, and `riscv64` architectures.
 
 use std::io;
+
+// Ensure we're compiling for a supported architecture.
+#[cfg(not(any(
+  target_arch = "x86_64",
+  target_arch = "aarch64",
+  target_arch = "riscv64"
+)))]
+compile_error!(
+  "Unsupported architecture: only x86_64, aarch64, and riscv64 are supported"
+);
 
 /// Direct syscall to open a file
 ///
@@ -62,9 +71,24 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
       fd as i32
     }
   }
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let fd: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 56i64,  // SYS_openat
+      in("a0") -100i32,  // AT_FDCWD
+      in("a1") path,
+      in("a2") flags,
+      in("a3") 0i32,  // mode
+      lateout("a0") fd,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      fd as i32
+    }
   }
 }
 
@@ -122,9 +146,23 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
     }
   }
 
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 63i64,  // SYS_read
+      in("a0") fd,
+      in("a1") buf,
+      in("a2") count,
+      lateout("a0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
   }
 }
 
@@ -183,9 +221,23 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
     }
   }
 
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 64i64,  // SYS_write
+      in("a0") fd,
+      in("a1") buf,
+      in("a2") count,
+      lateout("a0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
   }
 }
 
@@ -231,9 +283,20 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
     }
   }
 
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 57i64,  // SYS_close
+      in("a0") fd,
+      lateout("a0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
   }
 }
 
@@ -300,9 +363,21 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
     }
   }
 
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 160i64,  // SYS_uname
+      in("a0") buf,
+      lateout("a0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
   }
 }
 
@@ -381,9 +456,22 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
     }
   }
 
-  #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-  {
-    compile_error!("Unsupported architecture for inline assembly syscalls");
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 43i64,  // SYS_statfs
+      in("a0") path,
+      in("a1") buf,
+      lateout("a0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
   }
 }
 
@@ -425,5 +513,87 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> io::Result<usize> {
     {
       Ok(bytes_read as usize)
     }
+  }
+}
+
+/// Raw buffer for the `sysinfo(2)` syscall.
+///
+/// In the Linux ABI `uptime` is a `long` at offset 0. The remaining fields are
+/// not needed, but are declared to give the struct its correct size (112 bytes
+/// on 64-bit Linux).
+///
+/// The layout matches the kernel's `struct sysinfo` *exactly*:
+/// `mem_unit` ends at offset 108, then 4 bytes of implicit padding to 112.
+#[repr(C)]
+pub struct SysInfo {
+  pub uptime:    i64,
+  pub loads:     [u64; 3],
+  pub totalram:  u64,
+  pub freeram:   u64,
+  pub sharedram: u64,
+  pub bufferram: u64,
+  pub totalswap: u64,
+  pub freeswap:  u64,
+  pub procs:     u16,
+  _pad:          u16,
+  _pad2:         u32, /* alignment padding to reach 8-byte boundary for
+                       * totalhigh */
+  pub totalhigh: u64,
+  pub freehigh:  u64,
+  pub mem_unit:  u32,
+  // 4 bytes implicit trailing padding to reach 112 bytes total; no field
+  // needed
+}
+
+/// Direct `sysinfo(2)` syscall
+///
+/// # Returns
+///
+/// 0 on success, negative errno on error
+///
+/// # Safety
+///
+/// The caller must ensure that `info` points to a valid `SysInfo` buffer.
+#[inline]
+pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "syscall",
+      in("rax") 99_i64, // __NR_sysinfo
+      in("rdi") info,
+      out("rcx") _,
+      out("r11") _,
+      lateout("rax") ret,
+      options(nostack)
+    );
+    ret
+  }
+
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "svc #0",
+      in("x8") 179_i64, // __NR_sysinfo
+      in("x0") info,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    ret
+  }
+
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    std::arch::asm!(
+      "ecall",
+      in("a7") 179_i64, // __NR_sysinfo
+      in("a0") info,
+      lateout("a0") ret,
+      options(nostack)
+    );
+    ret
   }
 }
