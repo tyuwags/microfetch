@@ -117,7 +117,8 @@ pub fn get_memory_usage() -> Result<String, io::Error> {
     let mut buffer = [0u8; 1024];
 
     // Use fast syscall-based file reading
-    let bytes_read = read_file_fast("/proc/meminfo", &mut buffer)?;
+    let bytes_read = read_file_fast("/proc/meminfo", &mut buffer)
+      .map_err(|e| io::Error::from_raw_os_error(-e))?;
     let meminfo = &buffer[..bytes_read];
 
     // Fast scanning for MemTotal and MemAvailable

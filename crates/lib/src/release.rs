@@ -30,7 +30,8 @@ pub fn get_os_pretty_name() -> Result<String, io::Error> {
   let mut buffer = [0u8; 1024];
 
   // Use fast syscall-based file reading
-  let bytes_read = read_file_fast("/etc/os-release", &mut buffer)?;
+  let bytes_read = read_file_fast("/etc/os-release", &mut buffer)
+    .map_err(|e| io::Error::from_raw_os_error(-e))?;
   let content = &buffer[..bytes_read];
 
   let mut offset = 0;

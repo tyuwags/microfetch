@@ -7,7 +7,7 @@
 //!
 //! Supports `x86_64`, `aarch64`, and `riscv64` architectures.
 
-use std::io;
+#![no_std]
 
 // Ensure we're compiling for a supported architecture.
 #[cfg(not(any(
@@ -37,7 +37,7 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let fd: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 2i64,  // SYS_open
       in("rdi") path,
@@ -56,7 +56,7 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let fd: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 56i64,  // SYS_openat
       in("x0") -100i32,  // AT_FDCWD
@@ -74,7 +74,7 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let fd: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 56i64,  // SYS_openat
       in("a0") -100i32,  // AT_FDCWD
@@ -109,7 +109,7 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 0i64,  // SYS_read
       in("rdi") fd,
@@ -130,7 +130,7 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 63i64,  // SYS_read
       in("x0") fd,
@@ -149,7 +149,7 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 63i64,  // SYS_read
       in("a0") fd,
@@ -184,7 +184,7 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 1i64,  // SYS_write
       in("rdi") fd,
@@ -205,7 +205,7 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 64i64,  // SYS_write
       in("x0") fd,
@@ -224,7 +224,7 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 64i64,  // SYS_write
       in("a0") fd,
@@ -252,7 +252,7 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 3i64,  // SYS_close
       in("rdi") fd,
@@ -270,7 +270,7 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 57i64,  // SYS_close
       in("x0") fd,
@@ -286,7 +286,7 @@ pub unsafe fn sys_close(fd: i32) -> i32 {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 57i64,  // SYS_close
       in("a0") fd,
@@ -331,7 +331,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 63i64,  // SYS_uname
       in("rdi") buf,
@@ -350,7 +350,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 160i64,  // SYS_uname
       in("x0") buf,
@@ -366,7 +366,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 160i64,  // SYS_uname
       in("a0") buf,
@@ -421,7 +421,7 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 137i64,  // SYS_statfs
       in("rdi") path,
@@ -441,7 +441,7 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 43i64,  // SYS_statfs
       in("x0") path,
@@ -459,7 +459,7 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 43i64,  // SYS_statfs
       in("a0") path,
@@ -480,16 +480,17 @@ pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
 ///
 /// # Errors
 ///
-/// Returns an error if the file cannot be opened or read
+/// Returns an error if the file cannot be opened or read. The error value is
+/// the negated errno.
 #[inline]
-pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> io::Result<usize> {
+pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
   const O_RDONLY: i32 = 0;
 
   // We use stack-allocated buffer for null-terminated path. The maximum
   // is 256 bytes.
   let path_bytes = path.as_bytes();
   if path_bytes.len() >= 256 {
-    return Err(io::Error::new(io::ErrorKind::InvalidInput, "Path too long"));
+    return Err(-22); // EINVAL
   }
 
   let mut path_buf = [0u8; 256];
@@ -499,14 +500,14 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> io::Result<usize> {
   unsafe {
     let fd = sys_open(path_buf.as_ptr(), O_RDONLY);
     if fd < 0 {
-      return Err(io::Error::last_os_error());
+      return Err(fd);
     }
 
     let bytes_read = sys_read(fd, buffer.as_mut_ptr(), buffer.len());
     let _ = sys_close(fd);
 
     if bytes_read < 0 {
-      return Err(io::Error::last_os_error());
+      return Err(bytes_read as i32);
     }
 
     #[allow(clippy::cast_sign_loss)]
@@ -559,7 +560,7 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
   #[cfg(target_arch = "x86_64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "syscall",
       in("rax") 99_i64, // __NR_sysinfo
       in("rdi") info,
@@ -574,7 +575,7 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
   #[cfg(target_arch = "aarch64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "svc #0",
       in("x8") 179_i64, // __NR_sysinfo
       in("x0") info,
@@ -587,7 +588,7 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
   #[cfg(target_arch = "riscv64")]
   unsafe {
     let ret: i64;
-    std::arch::asm!(
+    core::arch::asm!(
       "ecall",
       in("a7") 179_i64, // __NR_sysinfo
       in("a0") info,
