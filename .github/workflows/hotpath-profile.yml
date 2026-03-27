@@ -19,6 +19,9 @@ jobs:
         with:
           rustflags: ""
 
+      - name: Make Mold the default linker
+        uses: rui314/setup-mold@v1
+
       - name: Create metrics directory
         run: mkdir -p /tmp/metrics
 
