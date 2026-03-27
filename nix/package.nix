@@ -3,8 +3,8 @@
   rustPlatform,
   llvm,
 }: let
-  toml = (lib.importTOML ../Cargo.toml).package;
-  pname = toml.name;
+  pname = "microfetch";
+  toml = (lib.importTOML ../Cargo.toml).workspace.package;
   inherit (toml) version;
 in
   rustPlatform.buildRustPackage.override {inherit (llvm) stdenv;} {
@@ -16,9 +16,10 @@ in
       fs.toSource {
         root = s;
         fileset = fs.unions [
-          (fs.fileFilter (file: builtins.any file.hasExt ["rs"]) (s + /crates))
-          (fs.fileFilter (file: builtins.any file.hasExt ["rs"]) (s + /microfetch))
+          (s + /crates)
+          (s + /microfetch)
           (s + /.cargo)
+          (s + /scripts/ld-wrapper)
           (s + /Cargo.lock)
           (s + /Cargo.toml)
         ];
