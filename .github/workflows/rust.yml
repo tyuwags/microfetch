@@ -29,6 +29,7 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         target: ${{ matrix.target }}
+        rustflags: ""
 
     - name: "Make Mold the default linker"
       uses: rui314/setup-mold@v1
