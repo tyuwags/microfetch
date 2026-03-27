@@ -30,6 +30,9 @@ jobs:
       with:
         target: ${{ matrix.target }}
 
+    - name: "Make Mold the default linker"
+      uses: rui314/setup-mold@v1
+
     - name: "Install cross"
       run: cargo install cross --git https://github.com/cross-rs/cross
 
