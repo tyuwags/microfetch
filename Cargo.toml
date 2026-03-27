@@ -1,5 +1,5 @@
 [workspace]
-members  = [ "crates/*", "microfetch" ]
+members  = [ "crates/*", "microfetch", "crates/benchmarks" ]
 resolver = "3"
 
 [workspace.package]
@@ -13,7 +13,8 @@ version      = "0.4.13"
 microfetch-asm = { path = "./crates/asm" }
 microfetch-lib = { path = "./crates/lib" }
 
-criterion = { default-features = false, features = [ "cargo_bench_support" ], version = "0.8.2" }
+criterion                 = { default-features = false, features = [ "cargo_bench_support" ], version = "0.8.2" }
+criterion-cycles-per-byte = "0.8.0"
 
 [profile.dev]
 opt-level = 1

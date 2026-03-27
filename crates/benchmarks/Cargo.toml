@@ -1,0 +1,21 @@
+[package]
+name                   = "microfetch-bench"
+description            = "Benchmarks for microfetch"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+publish                = false
+
+[dependencies]
+criterion.workspace                 = true
+criterion-cycles-per-byte.workspace = true
+microfetch-lib.workspace            = true
+
+[[bench]]
+harness = false
+name    = "microfetch"
+
+[lints]
+workspace = true

@@ -16,12 +16,5 @@ microfetch-asm.workspace = true
 hotpath       = [ "dep:hotpath", "hotpath/hotpath" ]
 hotpath-alloc = [ "hotpath/hotpath-alloc" ]
 
-[dev-dependencies]
-criterion.workspace = true
-
-[[bench]]
-harness = false
-name    = "benchmark"
-
 [lints]
 workspace = true
