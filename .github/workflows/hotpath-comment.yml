@@ -14,49 +14,31 @@ jobs:
   comment:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - name: Download profiling results
-        uses: actions/download-artifact@v8
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - uses: actions/download-artifact@v4
         with:
-          name: hotpath-results
-          path: /tmp/
+          name: profile-metrics
+          path: /tmp/metrics/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install hotpath-utils CLI
+        run: cargo install hotpath --bin hotpath-utils --features=utils
 
-      - name: Install hotpath CLI
-        run: cargo install hotpath
-
-      - name: Post timing comparison comment
+      - name: Post PR comment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          HEAD_METRICS=$(cat /tmp/head_timing.json)
-          BASE_METRICS=$(cat /tmp/base_timing.json)
-          PR_NUMBER=$(cat /tmp/pr_number.txt)
-          hotpath profile-pr \
-            --head-metrics "$HEAD_METRICS" \
-            --base-metrics "$BASE_METRICS" \
+          export GITHUB_BASE_REF=$(cat /tmp/metrics/base_ref.txt)
+          export GITHUB_HEAD_REF=$(cat /tmp/metrics/head_ref.txt)
+          hotpath-utils profile-pr \
+            --head-metrics /tmp/metrics/head_timing.json \
+            --base-metrics /tmp/metrics/base_timing.json \
             --github-token "$GH_TOKEN" \
-            --pr-number "$PR_NUMBER"
-
-      - name: Post allocation comparison comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          HEAD_METRICS=$(cat /tmp/head_alloc.json)
-          BASE_METRICS=$(cat /tmp/base_alloc.json)
-          PR_NUMBER=$(cat /tmp/pr_number.txt)
-          hotpath profile-pr \
-            --head-metrics "$HEAD_METRICS" \
-            --base-metrics "$BASE_METRICS" \
-            --github-token "$GH_TOKEN" \
-            --pr-number "$PR_NUMBER"
+            --pr-number "$(cat /tmp/metrics/pr_number.txt)" \
+            --benchmark-id "timing"
