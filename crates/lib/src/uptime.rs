@@ -1,6 +1,7 @@
-use std::{io, mem::MaybeUninit};
+use alloc::string::String;
+use core::mem::MaybeUninit;
 
-use crate::syscall::sys_sysinfo;
+use crate::{Error, syscall::sys_sysinfo};
 
 /// Faster integer to string conversion without the formatting overhead.
 #[inline]
@@ -16,7 +17,8 @@ fn itoa(mut n: u64, buf: &mut [u8]) -> &str {
     n /= 10;
   }
 
-  unsafe { std::str::from_utf8_unchecked(&buf[i..]) }
+  // SAFETY: We only wrote ASCII digits
+  unsafe { core::str::from_utf8_unchecked(&buf[i..]) }
 }
 
 /// Gets the current system uptime.
@@ -25,11 +27,11 @@ fn itoa(mut n: u64, buf: &mut [u8]) -> &str {
 ///
 /// Returns an error if the system uptime cannot be retrieved.
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
-pub fn get_current() -> Result<String, io::Error> {
+pub fn get_current() -> Result<String, Error> {
   let uptime_seconds = {
     let mut info = MaybeUninit::uninit();
     if unsafe { sys_sysinfo(info.as_mut_ptr()) } != 0 {
-      return Err(io::Error::last_os_error());
+      return Err(Error::last_os_error());
     }
     #[allow(clippy::cast_sign_loss)]
     unsafe {

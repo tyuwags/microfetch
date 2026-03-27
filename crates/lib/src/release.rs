@@ -1,6 +1,6 @@
-use std::{fmt::Write as _, io};
+use alloc::string::String;
 
-use crate::{UtsName, syscall::read_file_fast};
+use crate::{Error, UtsName, syscall::read_file_fast};
 
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
@@ -13,7 +13,14 @@ pub fn get_system_info(utsname: &UtsName) -> String {
   let capacity = sysname.len() + 1 + release.len() + 2 + machine.len() + 1;
   let mut result = String::with_capacity(capacity);
 
-  write!(result, "{sysname} {release} ({machine})").unwrap();
+  // Manual string construction instead of write! macro
+  result.push_str(sysname);
+  result.push(' ');
+  result.push_str(release);
+  result.push_str(" (");
+  result.push_str(machine);
+  result.push(')');
+
   result
 }
 
@@ -23,7 +30,7 @@ pub fn get_system_info(utsname: &UtsName) -> String {
 ///
 /// Returns an error if `/etc/os-release` cannot be read.
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
-pub fn get_os_pretty_name() -> Result<String, io::Error> {
+pub fn get_os_pretty_name() -> Result<String, Error> {
   // Fast byte-level scanning for PRETTY_NAME=
   const PREFIX: &[u8] = b"PRETTY_NAME=";
 
@@ -31,7 +38,7 @@ pub fn get_os_pretty_name() -> Result<String, io::Error> {
 
   // Use fast syscall-based file reading
   let bytes_read = read_file_fast("/etc/os-release", &mut buffer)
-    .map_err(|e| io::Error::from_raw_os_error(-e))?;
+    .map_err(Error::from_raw_os_error)?;
   let content = &buffer[..bytes_read];
 
   let mut offset = 0;
@@ -66,5 +73,5 @@ pub fn get_os_pretty_name() -> Result<String, io::Error> {
     offset += line_end + 1;
   }
 
-  Ok("Unknown".to_owned())
+  Ok(String::from("Unknown"))
 }

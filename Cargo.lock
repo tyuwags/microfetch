@@ -582,8 +582,14 @@ name = "microfetch"
 version = "0.4.13"
 dependencies = [
  "hotpath",
+ "microfetch-alloc",
+ "microfetch-asm",
  "microfetch-lib",
 ]
+
+[[package]]
+name = "microfetch-alloc"
+version = "0.4.13"
 
 [[package]]
 name = "microfetch-asm"

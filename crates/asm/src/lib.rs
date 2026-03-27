@@ -507,6 +507,7 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
     let _ = sys_close(fd);
 
     if bytes_read < 0 {
+      #[allow(clippy::cast_possible_truncation)]
       return Err(bytes_read as i32);
     }
 
@@ -596,5 +597,43 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
       options(nostack)
     );
     ret
+  }
+}
+
+/// Direct syscall to exit the process
+///
+/// # Safety
+///
+/// This syscall never returns. The process will terminate immediately.
+#[inline]
+pub unsafe fn sys_exit(code: i32) -> ! {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    core::arch::asm!(
+      "syscall",
+      in("rax") 60i64,  // SYS_exit
+      in("rdi") code,
+      options(noreturn, nostack)
+    );
+  }
+
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 93i64,  // SYS_exit
+      in("x0") code,
+      options(noreturn, nostack)
+    );
+  }
+
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    core::arch::asm!(
+      "ecall",
+      in("a7") 93i64,  // SYS_exit
+      in("a0") code,
+      options(noreturn, nostack)
+    );
   }
 }

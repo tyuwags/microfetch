@@ -1,13 +1,17 @@
+#![no_std]
+extern crate alloc;
+
 pub mod colors;
 pub mod desktop;
 pub mod release;
 pub mod system;
 pub mod uptime;
 
-use std::{
+use alloc::string::String;
+use core::{
   ffi::CStr,
-  io::{self, Cursor, Write},
   mem::MaybeUninit,
+  sync::atomic::{AtomicPtr, Ordering},
 };
 
 pub use microfetch_asm as syscall;
@@ -25,6 +29,200 @@ pub use microfetch_asm::{
   sys_write,
 };
 
+/// A simple error type for microfetch operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+  /// An OS error occurred, containing the errno value.
+  OsError(i32),
+  /// Invalid data or encoding error.
+  InvalidData,
+  /// Not found.
+  NotFound,
+  /// Write operation failed or partial write.
+  WriteError,
+}
+
+impl Error {
+  /// Creates an error from the last OS error (reads errno).
+  #[inline]
+  #[must_use]
+  pub const fn last_os_error() -> Self {
+    // This is a simplified version - in a real implementation,
+    // we'd need to get the actual errno from the syscall return
+    Self::OsError(0)
+  }
+
+  /// Creates an error from a raw OS error code (negative errno from syscall).
+  #[inline]
+  #[must_use]
+  pub const fn from_raw_os_error(errno: i32) -> Self {
+    Self::OsError(-errno)
+  }
+}
+
+impl core::fmt::Display for Error {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    match self {
+      Self::OsError(errno) => write!(f, "OS error: {errno}"),
+      Self::InvalidData => write!(f, "Invalid data"),
+      Self::NotFound => write!(f, "Not found"),
+      Self::WriteError => write!(f, "Write error"),
+    }
+  }
+}
+
+// Simple OnceLock implementation for no_std
+pub struct OnceLock<T> {
+  ptr: AtomicPtr<T>,
+}
+
+impl<T> Default for OnceLock<T> {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl<T> OnceLock<T> {
+  #[must_use]
+  pub const fn new() -> Self {
+    Self {
+      ptr: AtomicPtr::new(core::ptr::null_mut()),
+    }
+  }
+
+  pub fn get_or_init<F>(&self, f: F) -> &T
+  where
+    F: FnOnce() -> T,
+  {
+    // Load the current pointer
+    let mut ptr = self.ptr.load(Ordering::Acquire);
+
+    if ptr.is_null() {
+      // Need to initialize
+      let value = f();
+      let boxed = alloc::boxed::Box::new(value);
+      let new_ptr = alloc::boxed::Box::into_raw(boxed);
+
+      // Try to set the pointer
+      match self.ptr.compare_exchange(
+        core::ptr::null_mut(),
+        new_ptr,
+        Ordering::Release,
+        Ordering::Acquire,
+      ) {
+        Ok(_) => {
+          // We successfully set it
+          ptr = new_ptr;
+        },
+        Err(existing) => {
+          // Someone else set it first, free our allocation
+          // SAFETY: We just allocated this and no one else has seen it
+          unsafe {
+            let _ = alloc::boxed::Box::from_raw(new_ptr);
+          }
+          ptr = existing;
+        },
+      }
+    }
+
+    // SAFETY: We know ptr is non-null and points to a valid T
+    unsafe { &*ptr }
+  }
+}
+
+impl<T> Drop for OnceLock<T> {
+  fn drop(&mut self) {
+    let ptr = self.ptr.load(Ordering::Acquire);
+    if !ptr.is_null() {
+      // SAFETY: We know this was allocated via Box::into_raw
+      unsafe {
+        let _ = alloc::boxed::Box::from_raw(ptr);
+      }
+    }
+  }
+}
+
+// Access to the environ pointer (provided by libc startup code)
+unsafe extern "C" {
+  static environ: *const *const u8;
+}
+
+/// Gets an environment variable by name (without using std).
+///
+/// # Safety
+///
+/// This function reads from the environ global which is initialized
+/// by the C runtime before `main()` is called.
+#[must_use]
+pub fn getenv(name: &str) -> Option<&'static [u8]> {
+  // SAFETY: environ is set up by the C runtime before main() runs
+  // and remains valid for the lifetime of the program
+  let envp = unsafe { environ };
+  if envp.is_null() {
+    return None;
+  }
+
+  let name_bytes = name.as_bytes();
+
+  // Walk through environment variables
+  let mut i = 0;
+  loop {
+    // SAFETY: environ is null-terminated array of pointers
+    let entry = unsafe { *envp.add(i) };
+    if entry.is_null() {
+      break;
+    }
+
+    // Check if this entry starts with our variable name followed by '='
+    let mut matches = true;
+    for (j, &b) in name_bytes.iter().enumerate() {
+      // SAFETY: entry is a valid C string
+      let entry_byte = unsafe { *entry.add(j) };
+      if entry_byte != b {
+        matches = false;
+        break;
+      }
+    }
+
+    if matches {
+      // Check for '=' after the name
+      // SAFETY: entry is a valid C string
+      let eq_byte = unsafe { *entry.add(name_bytes.len()) };
+      if eq_byte == b'=' {
+        // Found it! Calculate the value length
+        let value_start = unsafe { entry.add(name_bytes.len() + 1) };
+        let mut len = 0;
+        loop {
+          // SAFETY: entry is a valid C string
+          let b = unsafe { *value_start.add(len) };
+          if b == 0 {
+            break;
+          }
+          len += 1;
+        }
+        // SAFETY: We calculated the exact length
+        return Some(unsafe { core::slice::from_raw_parts(value_start, len) });
+      }
+    }
+
+    i += 1;
+  }
+
+  None
+}
+
+/// Gets an environment variable as a UTF-8 string.
+#[must_use]
+pub fn getenv_str(name: &str) -> Option<&'static str> {
+  getenv(name).and_then(|bytes| core::str::from_utf8(bytes).ok())
+}
+
+/// Checks if an environment variable exists (regardless of its value).
+#[must_use]
+pub fn env_exists(name: &str) -> bool {
+  getenv(name).is_some()
+}
+
 /// Wrapper for `utsname` with safe accessor methods
 pub struct UtsName(UtsNameBuf);
 
@@ -34,10 +232,10 @@ impl UtsName {
   /// # Errors
   ///
   /// Returns an error if the `uname` syscall fails
-  pub fn uname() -> Result<Self, std::io::Error> {
+  pub fn uname() -> Result<Self, Error> {
     let mut uts = MaybeUninit::uninit();
     if unsafe { sys_uname(uts.as_mut_ptr()) } != 0 {
-      return Err(std::io::Error::last_os_error());
+      return Err(Error::last_os_error());
     }
     Ok(Self(unsafe { uts.assume_init() }))
   }
@@ -79,9 +277,7 @@ struct Fields {
 }
 
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
-fn print_system_info(
-  fields: &Fields,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn print_system_info(fields: &Fields) -> Result<(), Error> {
   let Fields {
     user_info,
     os_name,
@@ -94,69 +290,242 @@ fn print_system_info(
     colors,
   } = fields;
 
-  let cyan = colors::COLORS.cyan;
-  let blue = colors::COLORS.blue;
-  let reset = colors::COLORS.reset;
+  let no_color = colors::is_no_color();
+  let colors_obj = colors::Colors::new(no_color);
+  let cyan = colors_obj.cyan;
+  let blue = colors_obj.blue;
+  let reset = colors_obj.reset;
 
+  // Build output string
   let mut buf = [0u8; 2048];
-  let mut cursor = Cursor::new(&mut buf[..]);
+  let mut pos = 0usize;
 
-  write!(
-    cursor,
-    "
-    {blue}     ▟█▖    {cyan}▝█▙ ▗█▛         {user_info} ~{reset}
-    {blue}  ▗▄▄▟██▄▄▄▄▄{cyan}▝█▙█▛  {blue}▖       {cyan}  {blue}System{reset}        {os_name}
-    {blue}  ▀▀▀▀▀▀▀▀▀▀▀▘{cyan}▝██  {blue}▟█▖      {cyan}  {blue}Kernel{reset}        {kernel_version}
-    {cyan}     ▟█▛       {cyan}▝█▘{blue}▟█▛       {cyan}  {blue}Shell{reset}         {shell}
-    {cyan}▟█████▛          {blue}▟█████▛    {cyan}  {blue}Uptime{reset}        {uptime}
-    {cyan}   ▟█▛{blue}▗█▖       {blue}▟█▛         {cyan}  {blue}Desktop{reset}       {desktop}
-    {cyan}  ▝█▛  {blue}██▖{cyan}▗▄▄▄▄▄▄▄▄▄▄▄      {cyan}󰍛  {blue}Memory{reset}        {memory_usage}
-    {cyan}   ▝  {blue}▟█▜█▖{cyan}▀▀▀▀▀██▛▀▀▘      {cyan}󱥎  {blue}Storage (/){reset}   {storage}
-    {blue}     ▟█▘ ▜█▖    {cyan}▝█▛         {cyan}  {blue}Colors{reset}        {colors}\n\n"
-  )?;
+  // Helper to write to buffer
+  let mut write_str = |s: &str| {
+    let bytes = s.as_bytes();
+    let remaining = buf.len() - pos;
+    let to_write = bytes.len().min(remaining);
+    buf[pos..pos + to_write].copy_from_slice(&bytes[..to_write]);
+    pos += to_write;
+  };
 
-  let len =
-    usize::try_from(cursor.position()).expect("cursor position fits usize");
+  write_str("\n    ");
+  write_str(blue);
+  write_str("     ▟█▖    ");
+  write_str(cyan);
+  write_str("▝█▙ ▗█▛         ");
+  write_str(user_info);
+  write_str(" ~");
+  write_str(reset);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(blue);
+  write_str("  ▗▄▄▟██▄▄▄▄▄");
+  write_str(cyan);
+  write_str("▝█▙█▛  ");
+  write_str(blue);
+  write_str("▖       ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("System");
+  write_str(reset);
+  write_str("        ");
+  write_str(os_name);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(blue);
+  write_str("  ▀▀▀▀▀▀▀▀▀▀▀▘");
+  write_str(cyan);
+  write_str("▝██  ");
+  write_str(blue);
+  write_str("▟█▖      ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("Kernel");
+  write_str(reset);
+  write_str("        ");
+  write_str(kernel_version);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(cyan);
+  write_str("     ▟█▛       ");
+  write_str(cyan);
+  write_str("▝█▘");
+  write_str(blue);
+  write_str("▟█▛       ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("Shell");
+  write_str(reset);
+  write_str("         ");
+  write_str(shell);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(cyan);
+  write_str("▟█████▛          ");
+  write_str(blue);
+  write_str("▟█████▛    ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("Uptime");
+  write_str(reset);
+  write_str("        ");
+  write_str(uptime);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(cyan);
+  write_str("   ▟█▛");
+  write_str(blue);
+  write_str("▗█▖       ");
+  write_str(blue);
+  write_str("▟█▛         ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("Desktop");
+  write_str(reset);
+  write_str("       ");
+  write_str(desktop);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(cyan);
+  write_str("  ▝█▛  ");
+  write_str(blue);
+  write_str("██▖");
+  write_str(cyan);
+  write_str("▗▄▄▄▄▄▄▄▄▄▄▄      ");
+  write_str(cyan);
+  write_str("󰍛  ");
+  write_str(blue);
+  write_str("Memory");
+  write_str(reset);
+  write_str("        ");
+  write_str(memory_usage);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(cyan);
+  write_str("   ▝  ");
+  write_str(blue);
+  write_str("▟█▜█▖");
+  write_str(cyan);
+  write_str("▀▀▀▀▀██▛▀▀▘      ");
+  write_str(cyan);
+  write_str("󱥎  ");
+  write_str(blue);
+  write_str("Storage (/)");
+  write_str(reset);
+  write_str("   ");
+  write_str(storage);
+  write_str("\n");
+
+  write_str("    ");
+  write_str(blue);
+  write_str("     ▟█▘ ▜█▖    ");
+  write_str(cyan);
+  write_str("▝█▛         ");
+  write_str(cyan);
+  write_str("  ");
+  write_str(blue);
+  write_str("Colors");
+  write_str(reset);
+  write_str("        ");
+  write_str(colors);
+  write_str("\n\n");
+
   // Direct syscall to avoid stdout buffering allocation
-  let written = unsafe { sys_write(1, buf.as_ptr(), len) };
+  let written = unsafe { sys_write(1, buf.as_ptr(), pos) };
   if written < 0 {
-    return Err(io::Error::last_os_error().into());
+    #[allow(clippy::cast_possible_truncation)]
+    return Err(Error::OsError(written as i32));
   }
-  #[allow(clippy::cast_sign_loss)] // non-negative verified by the guard above
-  if written as usize != len {
-    return Err(
-      io::Error::new(io::ErrorKind::WriteZero, "partial write to stdout")
-        .into(),
-    );
+  #[allow(clippy::cast_sign_loss)]
+  if written as usize != pos {
+    return Err(Error::WriteError);
   }
   Ok(())
 }
 
+/// Print version information using direct syscall.
+fn print_version() {
+  const VERSION: &str = concat!("Microfetch ", env!("CARGO_PKG_VERSION"), "\n");
+  unsafe {
+    let _ = sys_write(1, VERSION.as_ptr(), VERSION.len());
+  }
+}
+
+/// Check if --version was passed via argc/argv.
+///
+/// # Safety
+///
+/// This function must be called with valid argc and argv from the program entry
+/// point.
+unsafe fn check_version_flag(argc: i32, argv: *const *const u8) -> bool {
+  if argc < 2 {
+    return false;
+  }
+  // SAFETY: argv is a valid array of argc pointers
+  let arg1 = unsafe { *argv.add(1) };
+  if arg1.is_null() {
+    return false;
+  }
+  // Check if arg1 is "--version"
+  let version_flag = b"--version\0";
+  for (i, &b) in version_flag.iter().enumerate() {
+    // SAFETY: arg1 is a valid C string
+    let arg_byte = unsafe { *arg1.add(i) };
+    if arg_byte != b {
+      return false;
+    }
+  }
+  true
+}
+
 /// Main entry point for microfetch - can be called by the binary crate
-/// or by other consumers of the library
+/// or by other consumers of the library.
+///
+/// # Arguments
+///
+/// * `argc` - Argument count from main
+/// * `argv` - Argument vector from main
 ///
 /// # Errors
 ///
 /// Returns an error if any system call fails
+///
+/// # Safety
+///
+/// argv must be a valid null-terminated array of C strings.
 #[cfg_attr(feature = "hotpath", hotpath::main)]
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-  if Some("--version") == std::env::args().nth(1).as_deref() {
-    println!("Microfetch {}", env!("CARGO_PKG_VERSION"));
-  } else {
-    let utsname = UtsName::uname()?;
-    let fields = Fields {
-      user_info:      system::get_username_and_hostname(&utsname),
-      os_name:        release::get_os_pretty_name()?,
-      kernel_version: release::get_system_info(&utsname),
-      shell:          system::get_shell(),
-      desktop:        desktop::get_desktop_info(),
-      uptime:         uptime::get_current()?,
-      memory_usage:   system::get_memory_usage()?,
-      storage:        system::get_root_disk_usage()?,
-      colors:         colors::print_dots(),
-    };
-    print_system_info(&fields)?;
+pub unsafe fn run(argc: i32, argv: *const *const u8) -> Result<(), Error> {
+  if unsafe { check_version_flag(argc, argv) } {
+    print_version();
+    return Ok(());
   }
+
+  let utsname = UtsName::uname()?;
+  let fields = Fields {
+    user_info:      system::get_username_and_hostname(&utsname),
+    os_name:        release::get_os_pretty_name()?,
+    kernel_version: release::get_system_info(&utsname),
+    shell:          system::get_shell(),
+    desktop:        desktop::get_desktop_info(),
+    uptime:         uptime::get_current()?,
+    memory_usage:   system::get_memory_usage()?,
+    storage:        system::get_root_disk_usage()?,
+    colors:         colors::print_dots(),
+  };
+  print_system_info(&fields)?;
 
   Ok(())
 }

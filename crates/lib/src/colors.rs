@@ -1,5 +1,6 @@
-use std::sync::LazyLock;
+use alloc::string::String;
 
+/// Color codes for terminal output
 pub struct Colors {
   pub reset:   &'static str,
   pub blue:    &'static str,
@@ -11,7 +12,8 @@ pub struct Colors {
 }
 
 impl Colors {
-  const fn new(is_no_color: bool) -> Self {
+  #[must_use]
+  pub const fn new(is_no_color: bool) -> Self {
     if is_no_color {
       Self {
         reset:   "",
@@ -36,46 +38,68 @@ impl Colors {
   }
 }
 
-pub static COLORS: LazyLock<Colors> = LazyLock::new(|| {
-  // Only presence matters; value is irrelevant per the NO_COLOR spec
-  let is_no_color = std::env::var_os("NO_COLOR").is_some();
-  Colors::new(is_no_color)
-});
+use core::sync::atomic::{AtomicBool, Ordering};
+
+// Check if NO_COLOR is set (only once, lazily)
+// Only presence matters; value is irrelevant per the NO_COLOR spec
+static NO_COLOR_CHECKED: AtomicBool = AtomicBool::new(false);
+static NO_COLOR_SET: AtomicBool = AtomicBool::new(false);
+
+/// Checks if `NO_COLOR` environment variable is set.
+pub(crate) fn is_no_color() -> bool {
+  // Fast path: already checked
+  if NO_COLOR_CHECKED.load(Ordering::Acquire) {
+    return NO_COLOR_SET.load(Ordering::Relaxed);
+  }
+
+  // Slow path: check environment
+  let is_set = crate::env_exists("NO_COLOR");
+  NO_COLOR_SET.store(is_set, Ordering::Relaxed);
+  NO_COLOR_CHECKED.store(true, Ordering::Release);
+  is_set
+}
 
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn print_dots() -> String {
-  // Pre-calculate capacity: 6 color codes + "  " (glyph + 2 spaces) per color
   const GLYPH: &str = "";
-  let capacity = COLORS.blue.len()
-    + COLORS.cyan.len()
-    + COLORS.green.len()
-    + COLORS.yellow.len()
-    + COLORS.red.len()
-    + COLORS.magenta.len()
-    + COLORS.reset.len()
+
+  let colors = if is_no_color() {
+    Colors::new(true)
+  } else {
+    Colors::new(false)
+  };
+
+  // Pre-calculate capacity: 6 color codes + "  " (glyph + 2 spaces) per color
+  let capacity = colors.blue.len()
+    + colors.cyan.len()
+    + colors.green.len()
+    + colors.yellow.len()
+    + colors.red.len()
+    + colors.magenta.len()
+    + colors.reset.len()
     + (GLYPH.len() + 2) * 6;
 
   let mut result = String::with_capacity(capacity);
-  result.push_str(COLORS.blue);
+  result.push_str(colors.blue);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.cyan);
+  result.push_str(colors.cyan);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.green);
+  result.push_str(colors.green);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.yellow);
+  result.push_str(colors.yellow);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.red);
+  result.push_str(colors.red);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.magenta);
+  result.push_str(colors.magenta);
   result.push_str(GLYPH);
   result.push_str("  ");
-  result.push_str(COLORS.reset);
+  result.push_str(colors.reset);
 
   result
 }
