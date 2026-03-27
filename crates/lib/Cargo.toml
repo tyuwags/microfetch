@@ -1,0 +1,20 @@
+[package]
+name                   = "microfetch-lib"
+description            = "Microfetch library crate - exports all functionality including main function"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+publish                = false
+
+[dependencies]
+hotpath                  = { optional = true, version = "0.14.0" }
+microfetch-asm.workspace = true
+
+[features]
+hotpath       = [ "dep:hotpath", "hotpath/hotpath" ]
+hotpath-alloc = [ "hotpath/hotpath-alloc" ]
+
+[lints]
+workspace = true

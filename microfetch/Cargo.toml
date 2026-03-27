@@ -1,0 +1,22 @@
+[package]
+name                   = "microfetch"
+description            = "Microscopic fetch tool in Rust, for NixOS systems, with special emphasis on speed"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+readme                 = "../docs/README.md"
+repository             = "https://github.com/notashelf/microfetch"
+publish                = false
+
+[dependencies]
+hotpath                  = { optional = true, version = "0.14.0" }
+microfetch-lib.workspace = true
+
+[features]
+hotpath       = [ "dep:hotpath" ]
+hotpath-alloc = [ "hotpath/hotpath-alloc" ]
+
+[lints]
+workspace = true

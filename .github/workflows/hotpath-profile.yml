@@ -4,62 +4,57 @@ on:
   pull_request:
     branches: [ "main" ]
 
-env:
-  CARGO_TERM_COLOR: always
+permissions:
+  contents: read
 
 jobs:
   profile:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout PR HEAD
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-      
-      - name: Run timing profiling on HEAD
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Create metrics directory
+        run: mkdir -p /tmp/metrics
+
+      - name: Head benchmark (timing)
         env:
-          HOTPATH_JSON: "true"
-        run: |
-          cargo run --features='hotpath' 2>&1 | grep '^{"hotpath_profiling_mode"' > /tmp/head_timing.json
-      
-      - name: Run allocation profiling on HEAD
+          HOTPATH_OUTPUT_FORMAT: json
+          HOTPATH_OUTPUT_PATH: /tmp/metrics/head_timing.json
+        run: cargo run -p microfetch --release --features='hotpath'
+
+      - name: Head benchmark (alloc)
         env:
-          HOTPATH_JSON: "true"
-        run: |
-          cargo run --features='hotpath,hotpath-alloc' 2>&1 | grep '^{"hotpath_profiling_mode"' > /tmp/head_alloc.json
-      
-      - name: Checkout base branch
-        run: |
-          git checkout ${{ github.event.pull_request.base.sha }}
-      
-      - name: Run timing profiling on base
+          HOTPATH_OUTPUT_FORMAT: json
+          HOTPATH_OUTPUT_PATH: /tmp/metrics/head_alloc.json
+        run: cargo run -p microfetch --release --features='hotpath,hotpath-alloc'
+
+      - name: Checkout base
+        run: git checkout ${{ github.event.pull_request.base.sha }}
+
+      - name: Base benchmark (timing)
         env:
-          HOTPATH_JSON: "true"
-        run: |
-          cargo run --features='hotpath' 2>&1 | grep '^{"hotpath_profiling_mode"' > /tmp/base_timing.json || echo '{}' > /tmp/base_timing.json
-      
-      - name: Run allocation profiling on base
+          HOTPATH_OUTPUT_FORMAT: json
+          HOTPATH_OUTPUT_PATH: /tmp/metrics/base_timing.json
+        run: cargo run -p microfetch --release --features='hotpath' || echo '{}' > /tmp/metrics/base_timing.json
+
+      - name: Base benchmark (alloc)
         env:
-          HOTPATH_JSON: "true"
+          HOTPATH_OUTPUT_FORMAT: json
+          HOTPATH_OUTPUT_PATH: /tmp/metrics/base_alloc.json
+        run: cargo run -p microfetch --release --features='hotpath,hotpath-alloc' || echo '{}' > /tmp/metrics/base_alloc.json
+
+      - name: Save PR metadata
         run: |
-          cargo run --features='hotpath,hotpath-alloc' 2>&1 | grep '^{"hotpath_profiling_mode"' > /tmp/base_alloc.json || echo '{}' > /tmp/base_alloc.json
-      
-      - name: Save PR number
-        run: |
-          echo '${{ github.event.pull_request.number }}' > /tmp/pr_number.txt
-      
-      - name: Upload profiling results
-        uses: actions/upload-artifact@v7
+          echo '${{ github.event.pull_request.number }}' > /tmp/metrics/pr_number.txt
+          echo '${{ github.base_ref }}' > /tmp/metrics/base_ref.txt
+          echo '${{ github.head_ref }}' > /tmp/metrics/head_ref.txt
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: hotpath-results
-          path: |
-            /tmp/head_timing.json
-            /tmp/head_alloc.json
-            /tmp/base_timing.json
-            /tmp/base_alloc.json
-            /tmp/pr_number.txt
+          name: profile-metrics
+          path: /tmp/metrics/
           retention-days: 1
