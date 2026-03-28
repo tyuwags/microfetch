@@ -19,12 +19,12 @@
 
 [fastfetch]: https://github.com/fastfetch-cli/fastfetch
 
-Stupidly small and simple, laughably fast and pretty fetch tool. Written in Rust
-for speed and ease of maintainability. Runs in a _fraction of a millisecond_ and
-displays _most_ of the nonsense you'd see posted on r/unixporn or other internet
-communities. Aims to replace [fastfetch] on my personal system, but
-[probably not yours](#customizing). Though, you are more than welcome to use it
-on your system: it is pretty _[fast](#benchmarks)_...
+Stupidly small and simple, laughably fast, and pretty fetch tool. Written
+(mostly) in Rust for speed and ease of maintainability. Runs in a _fraction of a
+millisecond_ and displays _most_ of the nonsense you'd see posted on r/unixporn
+or other internet communities. Aims to replace [fastfetch] on my personal
+system, but [probably not yours](#customizing). Though, you are more than
+welcome to use it on your system: it is pretty _[fast](#benchmarks)_...
 
 <p align="center">
   <br/>
@@ -40,9 +40,9 @@ on your system: it is pretty _[fast](#benchmarks)_...
 
 - Fast
 - Really fast
-- Minimal dependencies
-- Tiny binary (~370kb [^1])
-- Actually really fast
+- No dependencies (not even libc!)
+- Tiny binary (~25kb)
+- Actually _really_ fast
 - Cool NixOS logo (other, inferior, distros are not supported)
 - Reliable detection of following info:
   - Hostname/Username
@@ -57,12 +57,9 @@ on your system: it is pretty _[fast](#benchmarks)_...
   - Shell Colors
 - Did I mention fast?
 - Respects [`NO_COLOR` spec](https://no-color.org/)
-- Funny [^2]
+- Funny [^1]
 
-[^1]: With the Mold linker, which is enabled by default in the Flake package,
-    the binary size is roughly 350kb. That's nearly 20kb reduction in size :)
-
-[^2]: I don't know how else to describe the (unhealthy) amount of handwritten
+[^1]: I don't know how else to describe the (unhealthy) amount of handwritten
     assembly that was written in order to make Microfetch faster.
 
 ## Motivation
@@ -70,12 +67,12 @@ on your system: it is pretty _[fast](#benchmarks)_...
 [Rube-Goldmark Machine]: https://en.wikipedia.org/wiki/Rube_Goldberg_machine
 
 Fastfetch, as its name _probably_ already hinted, is a very fast fetch tool
-written in C. I used to use Fastfetch on my systems, but I eventually came to
+written in C. I _used to_ use Fastfetch on my systems, but I eventually came to
 the realization that I am _not interested in any of its additional features_. I
 don't use Sixel, I don't change my configuration more than maybe once a year and
-I don't even display most of the fields that it does. Sure the configurability
-is nice and I can configure the defaults that I do not like but how often do I
-really do that?
+I don't even display most of the fields that it has. Sure, the configurability
+is nice and _I could_ configure the defaults that I do not like... but how often
+do I really do that?
 
 Since I already enjoy programming challenges, and don't use a fetch program that
 often, I eventually came to try and answer the question _how fast can I make my
@@ -84,24 +81,29 @@ and put in my `~/.bashrc` but is _actually_ incredibly fast because it opts out
 of all the customization options provided by tools such as Fastfetch. Since
 Fetch scripts are kind of a coming-of-age ritual for most Linux users, I've
 decided to use it on my system. You also might be interested if you like the
-defaults and like speed.
+defaults and like speed. Ultimately, Microfetch a small, opinionated binary with
+a nice size that doesn't bother me, and _incredible_ speed. Customization? No
+thank you.
 
-Ultimately, it's a small, opinionated binary with a nice size that doesn't
-bother me, and incredible speed. Customization? No thank you. I cannot
-re-iterate it enough, Microfetch is _annoyingly fast_. It does not, however,
-solve a technical problem. The "problem" Microfetch solves is entirely
-self-imposed. On the matter of _size_, the project is written in Rust, which
-comes at the cost of "bloated" dependency trees and the increased build times,
-but we make an extended effort to keep the dependencies minimal and build times
-manageable. The latter is also very easily mitigated with Nix's binary cache
-systems. Since Microfetch is already in Nixpkgs, you are recommended to use it
-to utilize the binary cache properly. The usage of Rust _is_ nice, however,
-since it provides us with incredible tooling and a very powerful language that
-allows for Microfetch to be as fast as possible. ~~Sure C could've been used
-here as well, but do you think I hate myself?~~ Microfetch now features
-handwritten assembly to unsafely optimize some areas. In hindsight you all
-should have seen this coming. Is it faster? Yes. Should you use this? If you
-want to.
+I cannot re-iterate it enough, Microfetch is _annoyingly fast_. It, however,
+does not solve a real technical problem. The "problem" Microfetch "solves" is
+entirely self-imposed. I want a fast, _almost_ zero-cost command invocation and
+for it to not take that much space on my system. Thanks to the nature of Rust,
+Microfetch is _fast_. Rust does, or well, _did_ mean "bloated" dependency trees
+and slightly increased build times, though, as of 0.5.0 Microfetch has
+(voluntarily) dropped both `std` and `libc`. You can go check the numbers for
+the speed impact (hint: it's much better) but we also have little to no concerns
+left about build times and the binary size. Build times are also _very easily_
+mitigated with Nix's binary cache systems, and since Microfetch is already in
+Nixpkgs you are strongly encouraged to use `pkgs.microfetch` over the flake. The
+usage of Rust _is_ quite nice, however, since it provides us with incredible
+tooling and a very powerful language that allows for Microfetch to be as fast as
+possible.
+
+Surely C would've been a smaller choice, but I like Rust more. Microfetch _also_
+features a whole bunch of handwritten assembly with per-platform support to
+_unsafely_ optimize most syscalls. In hindsight you all should have seen this
+coming. Is it faster? Yes. Is it better? Uh, yes. Should you use this? Yes.
 
 Also see: [Rube-Goldmark Machine]
 
@@ -312,4 +314,5 @@ Microfetch. I might have missed your name here, but you have my thanks.
 
 ## License
 
-Microfetch is licensed under [GPL3](LICENSE). See the license file for details.
+This project is released under GNU Public Licence version 3 **only**. See the
+[license](../LICENSE) for more details.
