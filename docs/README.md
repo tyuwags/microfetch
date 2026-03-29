@@ -41,9 +41,9 @@ welcome to use it on your system: it is pretty _[fast](#benchmarks)_...
 - Fast
 - Really fast
 - No dependencies (not even libc!)
-- Tiny binary (~25kb)
+- Tiny binary (~24kb)
 - Actually _really_ fast
-- Cool NixOS logo (other, inferior, distros are not supported)
+- Cool NixOS logo, with support for custom logo text
 - Reliable detection of following info:
   - Hostname/Username
   - Kernel
@@ -234,20 +234,11 @@ interested in Microfetch tailored to their distributions.
 
 ## Customizing
 
-You can't*.
-
-### Why?
-
-Customization, of most kinds, is "expensive": I could try reading environment
-variables, parse command-line arguments or read a configuration file to allow
-configuring various fields but those inflate execution time and the resource
-consumption by a lot. Since Microfetch is closer to a code golf challenge than a
-program that attempts to fill a gap, I have elected not to make this trade. This
-is, of course, not without a solution.
+You can't*
 
 ### Really?
 
-[main module]: ./src/main.rs
+[main module]: ./microfetch/src/main.rs
 [discussions tab]: https://github.com/NotAShelf/microfetch/discussions
 
 To be fair, you _can_ customize Microfetch by, well, patching it. It is
@@ -264,6 +255,36 @@ The Nix package allows passing patches in a streamlined manner by passing
 `.overrideAttrs` to the derivation. You can apply your patches in `patches` and
 share your derivations with people. Feel free to use the [discussions tab] to
 share your own variants of Microfetch!
+
+The real reason behind lack of customizability is that customization, of most
+kinds, is "expensive": reading environment variables, parsing command-line
+arguments or reading a configuration file inflates execution time and resource
+consumption. Since Microfetch is closer to a code golf challenge than a program
+that attempts to fill a gap, runtime configuration is not supported. Patching
+the source is the only way to make changes that do not compromise on speed. The
+exception to this, as described below, is the custom logo support.
+
+### Logo
+
+Microfetch used to be impossible to customize without patching. Fortunately it's
+possible now to customize the logo to support your distribution. This is
+best-effort, but should work for most cases as long as you adhere to the
+constraints.
+
+To use a custom logo, set the `MICROFETCH_LOGO` environment variable to 9
+newline-separated lines of ASCII or Unicode art when building:
+
+```bash
+# Pass your logo text with MICROFETCH_LOGO.
+$ MICROFETCH_LOGO="$(cat my_logo.txt)" cargo build --release
+```
+
+Each line corresponds to one info row. Nerd Font glyphs for labels (System,
+Kernel, Shell, etc.) are rendered automatically. An unset variable uses the
+built-in two-tone NixOS logo.
+
+Keep in mind that the custom logo **is not padded**. You will need to mind the
+spaces if you're providing a custom logo for some sort.
 
 ## Contributing
 
