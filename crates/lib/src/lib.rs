@@ -289,6 +289,49 @@ struct Fields {
   colors:         String,
 }
 
+/// Minimal, stack-allocated writer implementing `core::fmt::Write`. Avoids heap
+/// allocation for the output buffer.
+struct StackWriter<'a> {
+  buf: &'a mut [u8],
+  pos: usize,
+}
+
+impl<'a> StackWriter<'a> {
+  #[inline]
+  const fn new(buf: &'a mut [u8]) -> Self {
+    Self { buf, pos: 0 }
+  }
+
+  #[inline]
+  fn written(&self) -> &[u8] {
+    &self.buf[..self.pos]
+  }
+}
+
+impl core::fmt::Write for StackWriter<'_> {
+  #[inline]
+  fn write_str(&mut self, s: &str) -> core::fmt::Result {
+    let bytes = s.as_bytes();
+    let to_write = bytes.len().min(self.buf.len() - self.pos);
+    self.buf[self.pos..self.pos + to_write].copy_from_slice(&bytes[..to_write]);
+    self.pos += to_write;
+    Ok(())
+  }
+}
+
+/// Custom logo art embedded at compile time via the `MICROFETCH_LOGO`
+/// environment variable. Set it to 9 newline-separated lines of ASCII/Unicode
+/// art when building to replace the default NixOS logo:
+///
+///   `MICROFETCH_LOGO="$(cat my_logo.txt)"` cargo build --release
+///
+/// Each line maps to one info row. When unset, the built-in two-tone NixOS
+/// logo is used.
+const CUSTOM_LOGO: &str = match option_env!("MICROFETCH_LOGO") {
+  Some(s) => s,
+  None => "",
+};
+
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn print_system_info(fields: &Fields) -> Result<(), Error> {
   let Fields {
@@ -304,168 +347,128 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
   } = fields;
 
   let no_color = colors::is_no_color();
-  let colors_obj = colors::Colors::new(no_color);
-  let cyan = colors_obj.cyan;
-  let blue = colors_obj.blue;
-  let reset = colors_obj.reset;
+  let c = colors::Colors::new(no_color);
 
-  // Build output string
   let mut buf = [0u8; 2048];
-  let mut pos = 0usize;
+  let mut w = StackWriter::new(&mut buf);
 
-  // Helper to write to buffer
-  let mut write_str = |s: &str| {
-    let bytes = s.as_bytes();
-    let remaining = buf.len() - pos;
-    let to_write = bytes.len().min(remaining);
-    buf[pos..pos + to_write].copy_from_slice(&bytes[..to_write]);
-    pos += to_write;
-  };
+  if CUSTOM_LOGO.is_empty() {
+    // Default two-tone NixOS logo rendered as a single write! pass.
+    core::fmt::write(
+      &mut w,
+      format_args!(
+        "\n    {b}     ▟█▖    {cy}▝█▙ ▗█▛         {user_info} ~{rs}\n    {b}  \
+         ▗▄▄▟██▄▄▄▄▄{cy}▝█▙█▛  {b}▖       {cy}\u{F313}  {b}System{rs}        \
+         {os_name}\n    {b}  ▀▀▀▀▀▀▀▀▀▀▀▘{cy}▝██  {b}▟█▖      {cy}\u{E712}  \
+         {b}Kernel{rs}        {kernel_version}\n    {cy}     ▟█▛       \
+         {cy}▝█▘{b}▟█▛       {cy}\u{E795}  {b}Shell{rs}         {shell}\n    \
+         {cy}▟█████▛          {b}▟█████▛    {cy}\u{F017}  {b}Uptime{rs}        \
+         {uptime}\n    {cy}   ▟█▛{b}▗█▖       {b}▟█▛         {cy}\u{F2D2}  \
+         {b}Desktop{rs}       {desktop}\n    {cy}  ▝█▛  \
+         {b}██▖{cy}▗▄▄▄▄▄▄▄▄▄▄▄      {cy}\u{F035B}  {b}Memory{rs}        \
+         {memory_usage}\n    {cy}   ▝  {b}▟█▜█▖{cy}▀▀▀▀▀██▛▀▀▘      \
+         {cy}\u{F194E}  {b}Storage (/){rs}   {storage}\n    {b}     ▟█▘ ▜█▖    \
+         {cy}▝█▛         {cy}\u{E22B}  {b}Colors{rs}        {colors}\n\n",
+        b = c.blue,
+        cy = c.cyan,
+        rs = c.reset,
+        user_info = user_info,
+        os_name = os_name,
+        kernel_version = kernel_version,
+        shell = shell,
+        uptime = uptime,
+        desktop = desktop,
+        memory_usage = memory_usage,
+        storage = storage,
+        colors = colors,
+      ),
+    )
+    .ok();
+  } else {
+    // Custom logo is 9 lines from MICROFETCH_LOGO env var, one per info row.
+    // Lines beyond 9 are ignored; missing lines render as empty.
+    let mut lines = CUSTOM_LOGO.split('\n');
+    let logo_rows: [&str; 9] =
+      core::array::from_fn(|_| lines.next().unwrap_or(""));
 
-  write_str("\n    ");
-  write_str(blue);
-  write_str("     ▟█▖    ");
-  write_str(cyan);
-  write_str("▝█▙ ▗█▛         ");
-  write_str(user_info);
-  write_str(" ~");
-  write_str(reset);
-  write_str("\n");
+    // Row format mirrors the default logo path exactly.
+    let rows: [(&str, &str, &str, &str, &str); 9] = [
+      ("", "", user_info.as_str(), "        ", " ~"),
+      ("\u{F313}  ", "System", os_name.as_str(), "        ", ""),
+      (
+        "\u{E712}  ",
+        "Kernel",
+        kernel_version.as_str(),
+        "        ",
+        "",
+      ),
+      ("\u{E795}  ", "Shell", shell.as_str(), "         ", ""),
+      ("\u{F017}  ", "Uptime", uptime.as_str(), "        ", ""),
+      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "       ", ""),
+      (
+        "\u{F035B}  ",
+        "Memory",
+        memory_usage.as_str(),
+        "        ",
+        "",
+      ),
+      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "   ", ""),
+      ("\u{E22B}  ", "Colors", colors.as_str(), "        ", ""),
+    ];
 
-  write_str("    ");
-  write_str(blue);
-  write_str("  ▗▄▄▟██▄▄▄▄▄");
-  write_str(cyan);
-  write_str("▝█▙█▛  ");
-  write_str(blue);
-  write_str("▖       ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("System");
-  write_str(reset);
-  write_str("        ");
-  write_str(os_name);
-  write_str("\n");
+    core::fmt::write(&mut w, format_args!("\n")).ok();
+    for i in 0..9 {
+      let (icon, key, value, spacing, suffix) = rows[i];
+      if key.is_empty() {
+        // Row 1 has  no icon/key, just logo + user_info
+        core::fmt::write(
+          &mut w,
+          format_args!(
+            "    {cy}{logo}{rs}  {value}{suffix}\n",
+            cy = c.cyan,
+            rs = c.reset,
+            logo = logo_rows[i],
+            value = value,
+            suffix = suffix,
+          ),
+        )
+        .ok();
+      } else {
+        core::fmt::write(
+          &mut w,
+          format_args!(
+            "    {cy}{logo}{rs}  \
+             {cy}{icon}{b}{key}{rs}{spacing}{value}{suffix}\n",
+            cy = c.cyan,
+            b = c.blue,
+            rs = c.reset,
+            logo = logo_rows[i],
+            icon = icon,
+            key = key,
+            spacing = spacing,
+            value = value,
+            suffix = suffix,
+          ),
+        )
+        .ok();
+      }
+    }
+    core::fmt::write(&mut w, format_args!("\n")).ok();
+  }
 
-  write_str("    ");
-  write_str(blue);
-  write_str("  ▀▀▀▀▀▀▀▀▀▀▀▘");
-  write_str(cyan);
-  write_str("▝██  ");
-  write_str(blue);
-  write_str("▟█▖      ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("Kernel");
-  write_str(reset);
-  write_str("        ");
-  write_str(kernel_version);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(cyan);
-  write_str("     ▟█▛       ");
-  write_str(cyan);
-  write_str("▝█▘");
-  write_str(blue);
-  write_str("▟█▛       ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("Shell");
-  write_str(reset);
-  write_str("         ");
-  write_str(shell);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(cyan);
-  write_str("▟█████▛          ");
-  write_str(blue);
-  write_str("▟█████▛    ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("Uptime");
-  write_str(reset);
-  write_str("        ");
-  write_str(uptime);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(cyan);
-  write_str("   ▟█▛");
-  write_str(blue);
-  write_str("▗█▖       ");
-  write_str(blue);
-  write_str("▟█▛         ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("Desktop");
-  write_str(reset);
-  write_str("       ");
-  write_str(desktop);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(cyan);
-  write_str("  ▝█▛  ");
-  write_str(blue);
-  write_str("██▖");
-  write_str(cyan);
-  write_str("▗▄▄▄▄▄▄▄▄▄▄▄      ");
-  write_str(cyan);
-  write_str("󰍛  ");
-  write_str(blue);
-  write_str("Memory");
-  write_str(reset);
-  write_str("        ");
-  write_str(memory_usage);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(cyan);
-  write_str("   ▝  ");
-  write_str(blue);
-  write_str("▟█▜█▖");
-  write_str(cyan);
-  write_str("▀▀▀▀▀██▛▀▀▘      ");
-  write_str(cyan);
-  write_str("󱥎  ");
-  write_str(blue);
-  write_str("Storage (/)");
-  write_str(reset);
-  write_str("   ");
-  write_str(storage);
-  write_str("\n");
-
-  write_str("    ");
-  write_str(blue);
-  write_str("     ▟█▘ ▜█▖    ");
-  write_str(cyan);
-  write_str("▝█▛         ");
-  write_str(cyan);
-  write_str("  ");
-  write_str(blue);
-  write_str("Colors");
-  write_str(reset);
-  write_str("        ");
-  write_str(colors);
-  write_str("\n\n");
-
-  // Direct syscall to avoid stdout buffering allocation
-  let written = unsafe { sys_write(1, buf.as_ptr(), pos) };
+  // Single syscall for the entire output.
+  let out = w.written();
+  let written = unsafe { sys_write(1, out.as_ptr(), out.len()) };
   if written < 0 {
     #[allow(clippy::cast_possible_truncation)]
     return Err(Error::OsError(written as i32));
   }
+
   #[allow(clippy::cast_sign_loss)]
-  if written as usize != pos {
+  if written as usize != out.len() {
     return Err(Error::WriteError);
   }
+
   Ok(())
 }
 
