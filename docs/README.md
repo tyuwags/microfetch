@@ -238,7 +238,7 @@ You can't*
 
 ### Really?
 
-[main module]: ./microfetch/src/main.rs
+[main module]: ../microfetch/src/main.rs
 [discussions tab]: https://github.com/NotAShelf/microfetch/discussions
 
 To be fair, you _can_ customize Microfetch by, well, patching it. It is
@@ -284,7 +284,7 @@ Kernel, Shell, etc.) are rendered automatically. An unset variable uses the
 built-in two-tone NixOS logo.
 
 Keep in mind that the custom logo **is not padded**. You will need to mind the
-spaces if you're providing a custom logo for some sort.
+spaces if you're providing a custom logo of some sort.
 
 ## Contributing
 
