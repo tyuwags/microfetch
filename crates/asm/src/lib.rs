@@ -225,7 +225,9 @@ mod entry {
       // Move stack pointer to first argument register
       "mov x0, sp",
       // Align stack to 16-byte boundary (AArch64 ABI requirement)
-      "and sp, sp, -16",
+      "mov x9, sp",
+      "and x9, x9, #-16",
+      "mov sp, x9",
       // Call into Rust code
       "bl {entry_rust}",
       // Move return code to syscall argument
