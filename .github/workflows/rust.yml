@@ -29,16 +29,18 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         target: ${{ matrix.target }}
+        rustflags: ""
 
     - name: "Make Mold the default linker"
       uses: rui314/setup-mold@v1
 
-    - name: "Install cross"
-      run: cargo install cross --git https://github.com/cross-rs/cross
+    - name: "Setup cross-compilation toolchain"
+      uses: taiki-e/setup-cross-toolchain-action@v1
+      with:
+        target: ${{ matrix.target }}
 
     - name: "Build"
-      run: cross build --verbose --target ${{ matrix.target }}
+      run: cargo build --verbose
 
     - name: "Run tests"
-      if: matrix.target == 'x86_64-unknown-linux-gnu'
-      run: cross test --verbose --target ${{ matrix.target }}
+      run: cargo test --workspace --exclude microfetch --verbose

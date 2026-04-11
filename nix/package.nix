@@ -1,22 +1,13 @@
 {
   lib,
-  stdenv,
-  stdenvAdapters,
   rustPlatform,
   llvm,
-  useMold ? stdenv.isLinux,
 }: let
-  toml = (lib.importTOML ../Cargo.toml).package;
-  pname = toml.name;
+  pname = "microfetch";
+  toml = (lib.importTOML ../Cargo.toml).workspace.package;
   inherit (toml) version;
-
-  # Select stdenv based on useMold flag
-  stdenv =
-    if useMold
-    then stdenvAdapters.useMoldLinker llvm.stdenv
-    else llvm.stdenv;
 in
-  rustPlatform.buildRustPackage.override {inherit stdenv;} {
+  rustPlatform.buildRustPackage.override {inherit (llvm) stdenv;} {
     inherit pname version;
     src = let
       fs = lib.fileset;
@@ -25,10 +16,12 @@ in
       fs.toSource {
         root = s;
         fileset = fs.unions [
-          (fs.fileFilter (file: builtins.any file.hasExt ["rs"]) (s + /src))
+          (s + /crates)
+          (s + /microfetch)
+          (s + /.cargo)
+          (s + /scripts/ld-wrapper)
           (s + /Cargo.lock)
           (s + /Cargo.toml)
-          (s + /benches)
         ];
       };
 
@@ -36,12 +29,6 @@ in
     enableParallelBuilding = true;
     buildNoDefaultFeatures = true;
     doCheck = false;
-
-    # Only set RUSTFLAGS for mold if useMold is enabled
-    env = lib.optionalAttrs useMold {
-      CARGO_LINKER = "clang";
-      RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
-    };
 
     meta = {
       description = "Microscopic fetch script in Rust, for NixOS systems";

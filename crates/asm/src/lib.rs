@@ -19,6 +19,137 @@ compile_error!(
   "Unsupported architecture: only x86_64, aarch64, and riscv64 are supported"
 );
 
+/// Copies `n` bytes from `src` to `dest`.
+///
+/// # Safety
+///
+/// `dest` and `src` must be valid pointers to non-overlapping regions of
+/// memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memcpy(
+  dest: *mut u8,
+  src: *const u8,
+  n: usize,
+) -> *mut u8 {
+  for i in 0..n {
+    unsafe {
+      *dest.add(i) = *src.add(i);
+    }
+  }
+  dest
+}
+
+/// Fills memory region with a byte value.
+///
+/// # Safety
+///
+/// `s` must be a valid pointer to memory of at least `n` bytes.
+/// The value in `c` is treated as unsigned (lower 8 bits used).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+  for i in 0..n {
+    unsafe {
+      *s.add(i) = u8::try_from(c).unwrap_or(0);
+    }
+  }
+  s
+}
+
+/// Compares two byte sequences.
+///
+/// # Safety
+///
+/// `s1` and `s2` must be valid pointers to memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
+  for i in 0..n {
+    let a = unsafe { *s1.add(i) };
+    let b = unsafe { *s2.add(i) };
+    if a != b {
+      return i32::from(a) - i32::from(b);
+    }
+  }
+  0
+}
+
+/// Compares two byte sequences.
+///
+/// # Safety
+///
+/// `s1` and `s2` must be valid pointers to memory of at least `n` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
+  unsafe { bcmp(s1, s2, n) }
+}
+
+/// Calculates the length of a null-terminated string.
+///
+/// # Safety
+///
+/// `s` must be a valid pointer to a null-terminated string.
+#[unsafe(no_mangle)]
+pub const unsafe extern "C" fn strlen(s: *const u8) -> usize {
+  let mut len = 0;
+  while unsafe { *s.add(len) } != 0 {
+    len += 1;
+  }
+  len
+}
+
+/// Function pointer type for the main application entry point.
+/// The function receives argc and argv and should return an exit code.
+#[cfg(not(test))]
+pub type MainFn = unsafe extern "C" fn(i32, *const *const u8) -> i32;
+
+#[cfg(not(test))]
+static mut MAIN_FN: Option<MainFn> = None;
+
+/// Register the main function to be called from the entry point.
+/// This must be called before the program starts (e.g., in a constructor).
+#[cfg(not(test))]
+pub fn register_main(main_fn: MainFn) {
+  unsafe {
+    MAIN_FN = Some(main_fn);
+  }
+}
+
+/// Rust entry point called from `_start` assembly.
+///
+/// The `stack` pointer points to:
+/// `[rsp]`     = argc
+/// `[rsp+8]`   = argv[0]
+/// etc.
+///
+/// # Safety
+///
+/// The `stack` pointer must point to valid stack memory set up by the kernel
+/// AND the binary must define a `main` function with the following signature:
+///
+/// ```rust,ignore
+/// unsafe extern "C" fn main(argc: i32, argv: *const *const u8) -> i32`
+/// ```
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn entry_rust(stack: *const usize) -> i32 {
+  // Read argc and argv from stack
+  let argc = unsafe { *stack };
+  let argv = unsafe { stack.add(1).cast::<*const u8>() };
+
+  // SAFETY: argc is unlikely to exceed i32::MAX on real systems
+  let argc_i32 = i32::try_from(argc).unwrap_or(i32::MAX);
+
+  // Call the main function (defined by the binary crate)
+  unsafe { main(argc_i32, argv) }
+}
+
+// External main function that must be defined by the binary using this crate.
+// Signature: `unsafe extern "C" fn main(argc: i32, argv: *const *const u8) ->
+// i32`
+#[cfg(not(test))]
+unsafe extern "C" {
+  fn main(argc: i32, argv: *const *const u8) -> i32;
+}
+
 /// Direct syscall to open a file
 ///
 /// # Returns
@@ -507,6 +638,7 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
     let _ = sys_close(fd);
 
     if bytes_read < 0 {
+      #[allow(clippy::cast_possible_truncation)]
       return Err(bytes_read as i32);
     }
 
@@ -596,5 +728,43 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
       options(nostack)
     );
     ret
+  }
+}
+
+/// Direct syscall to exit the process
+///
+/// # Safety
+///
+/// This syscall never returns. The process will terminate immediately.
+#[inline]
+pub unsafe fn sys_exit(code: i32) -> ! {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    core::arch::asm!(
+      "syscall",
+      in("rax") 60i64,  // SYS_exit
+      in("rdi") code,
+      options(noreturn, nostack)
+    );
+  }
+
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 93i64,  // SYS_exit
+      in("x0") code,
+      options(noreturn, nostack)
+    );
+  }
+
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    core::arch::asm!(
+      "ecall",
+      in("a7") 93i64,  // SYS_exit
+      in("a0") code,
+      options(noreturn, nostack)
+    );
   }
 }

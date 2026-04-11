@@ -1,3 +1,16 @@
-# https://github.com/rui314/mold?tab=readme-ov-file#how-to-use
+# Use a linker wrapper that invokes mold then strips junk sections with objcopy.
+# mold cannot discard .eh_frame/.dynstr/.comment via linker scripts, so we do
+# it as a post-link step.
+# See:
+#  <https://github.com/rui314/mold?tab=readme-ov-file#how-to-use>
+#
+# Binary-specific link flags live in microfetch/build.rs via cargo:rustc-link-arg-bin
+# so they only affect the final binary and don't break proc-macro or build-script linking.
 [target.'cfg(target_os = "linux")']
-rustflags = [ "-C", "link-arg=-fuse-ld=mold" ]
+linker = "scripts/ld-wrapper"
+rustflags = [
+  # Suppress .eh_frame emission from our own codegen (does not cover compiler_builtins;
+  # those remnants are removed by the linker wrapper via objcopy post-link)
+  "-C",
+  "force-unwind-tables=no",
+]

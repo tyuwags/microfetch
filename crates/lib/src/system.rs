@@ -1,37 +1,39 @@
-use std::{ffi::OsStr, fmt::Write as _, io, mem::MaybeUninit};
+use alloc::string::String;
+use core::mem::MaybeUninit;
 
 use crate::{
+  Error,
   UtsName,
-  colors::COLORS,
+  colors::Colors,
   syscall::{StatfsBuf, read_file_fast, sys_statfs},
 };
 
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn get_username_and_hostname(utsname: &UtsName) -> String {
-  let username_os = std::env::var_os("USER");
-  let username = username_os
-    .as_deref()
-    .and_then(OsStr::to_str)
-    .unwrap_or("unknown_user");
+  let username = crate::getenv_str("USER").unwrap_or("unknown_user");
   let hostname = utsname.nodename().to_str().unwrap_or("unknown_host");
 
-  let capacity = COLORS.yellow.len()
+  // Get colors (checking NO_COLOR only once)
+  let no_color = crate::colors::is_no_color();
+  let colors = Colors::new(no_color);
+
+  let capacity = colors.yellow.len()
     + username.len()
-    + COLORS.red.len()
+    + colors.red.len()
     + 1
-    + COLORS.green.len()
+    + colors.green.len()
     + hostname.len()
-    + COLORS.reset.len();
+    + colors.reset.len();
   let mut result = String::with_capacity(capacity);
 
-  result.push_str(COLORS.yellow);
+  result.push_str(colors.yellow);
   result.push_str(username);
-  result.push_str(COLORS.red);
+  result.push_str(colors.red);
   result.push('@');
-  result.push_str(COLORS.green);
+  result.push_str(colors.green);
   result.push_str(hostname);
-  result.push_str(COLORS.reset);
+  result.push_str(colors.reset);
 
   result
 }
@@ -39,13 +41,12 @@ pub fn get_username_and_hostname(utsname: &UtsName) -> String {
 #[must_use]
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn get_shell() -> String {
-  let shell_os = std::env::var_os("SHELL");
-  let shell = shell_os.as_deref().and_then(OsStr::to_str).unwrap_or("");
+  let shell = crate::getenv_str("SHELL").unwrap_or("");
   let start = shell.rfind('/').map_or(0, |i| i + 1);
   if shell.is_empty() {
-    "unknown_shell".into()
+    String::from("unknown_shell")
   } else {
-    shell[start..].into()
+    String::from(&shell[start..])
   }
 }
 
@@ -56,12 +57,12 @@ pub fn get_shell() -> String {
 /// Returns an error if the filesystem information cannot be retrieved.
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 #[allow(clippy::cast_precision_loss)]
-pub fn get_root_disk_usage() -> Result<String, io::Error> {
+pub fn get_root_disk_usage() -> Result<String, Error> {
   let mut vfs = MaybeUninit::<StatfsBuf>::uninit();
   let path = b"/\0";
 
   if unsafe { sys_statfs(path.as_ptr(), vfs.as_mut_ptr()) } != 0 {
-    return Err(io::Error::last_os_error());
+    return Err(Error::last_os_error());
   }
 
   let vfs = unsafe { vfs.assume_init() };
@@ -77,16 +78,94 @@ pub fn get_root_disk_usage() -> Result<String, io::Error> {
   let used_size = used_size as f64 / (1024.0 * 1024.0 * 1024.0);
   let usage = (used_size / total_size) * 100.0;
 
+  let no_color = crate::colors::is_no_color();
+  let colors = Colors::new(no_color);
+
   let mut result = String::with_capacity(64);
-  write!(
-    result,
-    "{used_size:.2} GiB / {total_size:.2} GiB ({cyan}{usage:.0}%{reset})",
-    cyan = COLORS.cyan,
-    reset = COLORS.reset,
-  )
-  .unwrap();
+
+  // Manual float formatting
+  write_float(&mut result, used_size, 2);
+  result.push_str(" GiB / ");
+  write_float(&mut result, total_size, 2);
+  result.push_str(" GiB (");
+  result.push_str(colors.cyan);
+  write_float(&mut result, usage, 0);
+  result.push('%');
+  result.push_str(colors.reset);
+  result.push(')');
 
   Ok(result)
+}
+
+/// Write a float to string with specified decimal places
+#[allow(
+  clippy::cast_sign_loss,
+  clippy::cast_possible_truncation,
+  clippy::cast_precision_loss
+)]
+fn write_float(s: &mut String, val: f64, decimals: u32) {
+  // Handle integer part
+  let int_part = val as u64;
+  write_u64(s, int_part);
+
+  if decimals > 0 {
+    s.push('.');
+
+    // Calculate fractional part
+    let mut frac = val - int_part as f64;
+    for _ in 0..decimals {
+      frac *= 10.0;
+      let digit = frac as u8;
+      s.push((b'0' + digit) as char);
+      frac -= f64::from(digit);
+    }
+  }
+}
+
+/// Round an f64 to nearest integer (`f64::round` is not in core)
+#[allow(
+  clippy::cast_precision_loss,
+  clippy::cast_possible_truncation,
+  clippy::cast_sign_loss
+)]
+fn round_f64(x: f64) -> f64 {
+  if x >= 0.0 {
+    let int_part = x as u64 as f64;
+    let frac = x - int_part;
+    if frac >= 0.5 {
+      int_part + 1.0
+    } else {
+      int_part
+    }
+  } else {
+    let int_part = (-x) as u64 as f64;
+    let frac = -x - int_part;
+    if frac >= 0.5 {
+      -(int_part + 1.0)
+    } else {
+      -int_part
+    }
+  }
+}
+
+/// Write a u64 to string
+fn write_u64(s: &mut String, mut n: u64) {
+  if n == 0 {
+    s.push('0');
+    return;
+  }
+
+  let mut buf = [0u8; 20];
+  let mut i = 20;
+
+  while n > 0 {
+    i -= 1;
+    buf[i] = b'0' + (n % 10) as u8;
+    n /= 10;
+  }
+
+  // SAFETY: buf contains only ASCII digits
+  s.push_str(unsafe { core::str::from_utf8_unchecked(&buf[i..]) });
 }
 
 /// Fast integer parsing without stdlib overhead
@@ -109,16 +188,16 @@ fn parse_u64_fast(s: &[u8]) -> u64 {
 ///
 /// Returns an error if `/proc/meminfo` cannot be read.
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
-pub fn get_memory_usage() -> Result<String, io::Error> {
+pub fn get_memory_usage() -> Result<String, Error> {
   #[cfg_attr(feature = "hotpath", hotpath::measure)]
-  fn parse_memory_info() -> Result<(f64, f64), io::Error> {
+  fn parse_memory_info() -> Result<(f64, f64), Error> {
     let mut total_memory_kb = 0u64;
     let mut available_memory_kb = 0u64;
     let mut buffer = [0u8; 1024];
 
     // Use fast syscall-based file reading
     let bytes_read = read_file_fast("/proc/meminfo", &mut buffer)
-      .map_err(|e| io::Error::from_raw_os_error(-e))?;
+      .map_err(Error::from_raw_os_error)?;
     let meminfo = &buffer[..bytes_read];
 
     // Fast scanning for MemTotal and MemAvailable
@@ -168,17 +247,22 @@ pub fn get_memory_usage() -> Result<String, io::Error> {
 
   let (used_memory, total_memory) = parse_memory_info()?;
   #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-  let percentage_used = (used_memory / total_memory * 100.0).round() as u64;
+  let percentage_used = round_f64(used_memory / total_memory * 100.0) as u64;
+
+  let no_color = crate::colors::is_no_color();
+  let colors = Colors::new(no_color);
 
   let mut result = String::with_capacity(64);
-  write!(
-    result,
-    "{used_memory:.2} GiB / {total_memory:.2} GiB \
-     ({cyan}{percentage_used}%{reset})",
-    cyan = COLORS.cyan,
-    reset = COLORS.reset,
-  )
-  .unwrap();
+
+  write_float(&mut result, used_memory, 2);
+  result.push_str(" GiB / ");
+  write_float(&mut result, total_memory, 2);
+  result.push_str(" GiB (");
+  result.push_str(colors.cyan);
+  write_u64(&mut result, percentage_used);
+  result.push('%');
+  result.push_str(colors.reset);
+  result.push(')');
 
   Ok(result)
 }
