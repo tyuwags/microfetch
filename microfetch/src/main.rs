@@ -3,12 +3,59 @@
 
 extern crate alloc;
 
-use core::panic::PanicInfo;
+use core::{arch::naked_asm, panic::PanicInfo};
 
 use microfetch_alloc::BumpAllocator;
 // Re-export libc replacement functions from asm crate
 pub use microfetch_asm::{memcpy, memset, strlen};
-use microfetch_asm::{sys_exit, sys_write};
+use microfetch_asm::{entry_rust, sys_exit, sys_write};
+
+#[cfg(target_arch = "x86_64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mov rdi, rsp",
+    "and rsp, -16",
+    "call {entry_rust}",
+    "mov rdi, rax",
+    "mov rax, 60",
+    "syscall",
+    entry_rust = sym entry_rust,
+  );
+}
+
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mov x0, sp",
+    "mov x9, sp",
+    "and x9, x9, #-16",
+    "mov sp, x9",
+    "bl {entry_rust}",
+    "mov x0, x0",
+    "mov x8, 93",
+    "svc #0",
+    entry_rust = sym entry_rust,
+  );
+}
+
+#[cfg(target_arch = "riscv64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mv a0, sp",
+    "andi sp, sp, -16",
+    "call {entry_rust}",
+    "mv a0, a0",
+    "li a7, 93",
+    "ecall",
+    entry_rust = sym entry_rust,
+  );
+}
 
 // Global allocator
 #[global_allocator]
