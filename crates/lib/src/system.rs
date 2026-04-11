@@ -149,7 +149,7 @@ fn round_f64(x: f64) -> f64 {
 }
 
 /// Write a u64 to string
-fn write_u64(s: &mut String, mut n: u64) {
+pub fn write_u64(s: &mut String, mut n: u64) {
   if n == 0 {
     s.push('0');
     return;
