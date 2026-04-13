@@ -8,10 +8,10 @@ rust-version.workspace = true
 license.workspace      = true
 readme                 = "../docs/README.md"
 repository             = "https://github.com/notashelf/microfetch"
-publish                = false
+publish                = true
 
 [dependencies]
-hotpath                    = { optional = true, version = "0.14.0" }
+hotpath                    = { optional = true, version = "0.15.0" }
 microfetch-alloc.workspace = true
 microfetch-asm.workspace   = true
 microfetch-lib.workspace   = true
