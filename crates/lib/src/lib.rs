@@ -364,16 +364,16 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
       &mut w,
       format_args!(
         "\n    {b}⠀⠀⠀⠀⠀⠀⢼⣿⣄⠀⠀⠀{cy}⠹⣿⣷⡀⠀⣠⣿⡧⠀⠀⠀⠀⠀⠀{rs}  {user_info} ~{rs}\
-         \n    {b}⠀⠀⠀⠀⠀⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠘⣿⣿⣴⣿⡿⠁⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F313}  {b}System{rs}        {os_name}\
-         \n    {b}⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡜{cy}⢿⣿⣟⠀⠀⠀{b}⢀⡄⠀⠀⠀{rs}  {cy}\u{E712}  {b}Kernel{rs}        {kernel_version}\
-         \n    {b}⠀⠀⠀⠉⠉⠉⠉{cy}⣩⣭⡭{b}⠉⠉⠉⠉⠉{cy}⠈⢿⣿⣆⠀{b}⢠⣿⣿⠂⠀⠀{rs}  {cy}\u{F2DB}  {b}CPU{rs}           {cpu_name}\
-         \n    {cy}⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⢻⡟{b}⣡⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F4BC}  {b}Topology{rs}      {cpu_cores}\
-         \n    {cy}⢸⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀{b}⣰⣿⣿⣿⣿⣿⣿⡇{rs}  {cy}\u{E795}  {b}Shell{rs}         {shell}\
-         \n    {cy}⠀⠀⠀⢠⣿⣿⢋{b}⣼⣧⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F017}  {b}Uptime{rs}        {uptime}\
-         \n    {cy}⠀⠀⠠⣿⣿⠃⠀{b}⠹⣿⣷⡀{cy}⣀⣀⣀⣀⣀{b}⣚⣛⣋{cy}⣀⣀⣀⣀⠀⠀⠀{rs}  {cy}\u{F2D2}  {b}Desktop{rs}       {desktop}\
-         \n    {cy}⠀⠀⠀⠘⠁⠀⠀⠀{b}⣽⣿⣷⡜{cy}⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F035B}  {b}Memory{rs}        {memory_usage}\
-         \n    {b}⠀⠀⠀⠀⠀⠀⢀⣾⣿⠟⣿⣿⡄⠀⠀⠀{cy}⠹⣿⣷⡀⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F194E}  {b}Storage (/){rs}   {storage}\
-         \n    {b}⠀⠀⠀⠀⠀⠀⢺⣿⠋⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠙⣿⡗⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{E22B}  {b}Colors{rs}        {colors}\n\n",
+         \n    {b}⠀⠀⠀⠀⠀⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠘⣿⣿⣴⣿⡿⠁⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F313}  {b}System{rs}       \u{E621} {os_name}\
+         \n    {b}⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡜{cy}⢿⣿⣟⠀⠀⠀{b}⢀⡄⠀⠀⠀{rs}  {cy}\u{E712}  {b}Kernel{rs}       \u{E621} {kernel_version}\
+         \n    {b}⠀⠀⠀⠉⠉⠉⠉{cy}⣩⣭⡭{b}⠉⠉⠉⠉⠉{cy}⠈⢿⣿⣆⠀{b}⢠⣿⣿⠂⠀⠀{rs}  {cy}\u{F2DB}  {b}CPU{rs}          \u{E621} {cpu_name}\
+         \n    {cy}⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⢻⡟{b}⣡⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F4BC}  {b}Topology{rs}     \u{E621} {cpu_cores}\
+         \n    {cy}⢸⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀{b}⣰⣿⣿⣿⣿⣿⣿⡇{rs}  {cy}\u{E795}  {b}Shell{rs}        \u{E621} {shell}\
+         \n    {cy}⠀⠀⠀⢠⣿⣿⢋{b}⣼⣧⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F017}  {b}Uptime{rs}       \u{E621} {uptime}\
+         \n    {cy}⠀⠀⠠⣿⣿⠃⠀{b}⠹⣿⣷⡀{cy}⣀⣀⣀⣀⣀{b}⣚⣛⣋{cy}⣀⣀⣀⣀⠀⠀⠀{rs}  {cy}\u{F2D2}  {b}Desktop{rs}      \u{E621} {desktop}\
+         \n    {cy}⠀⠀⠀⠘⠁⠀⠀⠀{b}⣽⣿⣷⡜{cy}⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F035B}  {b}Memory{rs}       \u{E621} {memory_usage}\
+         \n    {b}⠀⠀⠀⠀⠀⠀⢀⣾⣿⠟⣿⣿⡄⠀⠀⠀{cy}⠹⣿⣷⡀⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F194E}  {b}Storage (/){rs}  \u{E621} {storage}\
+         \n    {b}⠀⠀⠀⠀⠀⠀⢺⣿⠋⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠙⣿⡗⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{E22B}  {b}Colors{rs}       \u{E621} {colors}\n\n",
         b = c.blue,
         cy = c.cyan,
         rs = c.reset,
@@ -401,28 +401,28 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
     // Row format mirrors the default logo path exactly.
     let rows: [(&str, &str, &str, &str, &str); 11] = [
       ("", "", user_info.as_str(), "        ", " ~"),
-      ("\u{F313}  ", "System", os_name.as_str(), "        ", ""),
+      ("\u{F313}  ", "System", os_name.as_str(), "       \u{E621} ", ""),
       (
         "\u{E712}  ",
         "Kernel",
         kernel_version.as_str(),
-        "        ",
+        "       \u{E621} ",
         "",
       ),
-      ("\u{F2DB}  ", "CPU", cpu_name.as_str(), "           ", ""),
-      ("\u{F4BC}  ", "Topology", cpu_cores.as_str(), "      ", ""),
-      ("\u{E795}  ", "Shell", shell.as_str(), "         ", ""),
-      ("\u{F017}  ", "Uptime", uptime.as_str(), "        ", ""),
-      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "       ", ""),
+      ("\u{F2DB}  ", "CPU", cpu_name.as_str(), "          \u{E621} ", ""),
+      ("\u{F4BC}  ", "Topology", cpu_cores.as_str(), "     \u{E621} ", ""),
+      ("\u{E795}  ", "Shell", shell.as_str(), "        \u{E621} ", ""),
+      ("\u{F017}  ", "Uptime", uptime.as_str(), "       \u{E621} ", ""),
+      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "      \u{E621} ", ""),
       (
         "\u{F035B}  ",
         "Memory",
         memory_usage.as_str(),
-        "        ",
+        "       \u{E621} ",
         "",
       ),
-      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "   ", ""),
-      ("\u{E22B}  ", "Colors", colors.as_str(), "        ", ""),
+      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "  \u{E621} ", ""),
+      ("\u{E22B}  ", "Colors", colors.as_str(), "       \u{E621} ", ""),
     ];
 
     core::fmt::write(&mut w, format_args!("\n")).ok();
