@@ -140,10 +140,15 @@ fn get_cpu_freq_mhz() -> Option<u32> {
     }
   }
   // Fall back to cpuinfo fields
-  let mut buf2 = [0u8; 2048];
+  let mut buf2 = [0u8; 4096];
   let n = read_file_fast("/proc/cpuinfo", &mut buf2).ok()?;
   let data = &buf2[..n];
-  for key in &[b"cpu MHz" as &[u8], b"cpu MHz dynamic", b"CPU MHz"] {
+  for key in &[
+    b"cpu MHz" as &[u8],
+    b"cpu MHz dynamic",
+    b"cpu MHz static",
+    b"CPU MHz",
+  ] {
     if let Some(val) = extract_field(data, key) {
       // Parse integer part of the MHz value (e.g. "5200.00" -> 5200)
       let mut mhz = 0u32;

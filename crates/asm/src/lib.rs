@@ -5,7 +5,8 @@
 //! What do you mean I wasted two whole hours to make the program only 100µs
 //! faster?
 //!
-//! Supports `x86_64`, `aarch64`, `riscv64`, and `loongarch64` architectures.
+//! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, and `s390x`
+//! architectures.
 
 #![no_std]
 
@@ -14,11 +15,12 @@
   target_arch = "x86_64",
   target_arch = "aarch64",
   target_arch = "riscv64",
-  target_arch = "loongarch64"
+  target_arch = "loongarch64",
+  target_arch = "s390x"
 )))]
 compile_error!(
-  "Unsupported architecture: only x86_64, aarch64, riscv64, and loongarch64 \
-   are supported"
+  "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, and \
+   s390x are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -33,6 +35,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "loongarch64")]
 #[path = "loongarch64.rs"]
+mod arch;
+#[cfg(target_arch = "s390x")]
+#[path = "s390x.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -267,6 +272,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
 /// offsets on both architectures. Only the fields needed for disk usage are
 /// declared; the remainder of the 120-byte struct is covered by `_pad`.
 #[repr(C)]
+#[cfg(not(target_arch = "s390x"))]
 pub struct StatfsBuf {
   pub f_type:    i64,
   pub f_bsize:   i64,
@@ -282,6 +288,26 @@ pub struct StatfsBuf {
 
   #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
   pub _pad: [i64; 4],
+}
+
+/// on s390x `f_type` and `f_bsize` are 32-bit.
+#[repr(C)]
+#[cfg(target_arch = "s390x")]
+pub struct StatfsBuf {
+  pub f_type:    u32,
+  pub f_bsize:   u32,
+  pub f_blocks:  u64,
+  pub f_bfree:   u64,
+  pub f_bavail:  u64,
+  pub f_files:   u64,
+  pub f_ffree:   u64,
+  pub f_fsid:    [i32; 2],
+  pub f_namelen: u32,
+  pub f_frsize:  u32,
+  pub f_flags:   u32,
+
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _pad: [u32; 5],
 }
 
 /// Direct `statfs(2)` syscall

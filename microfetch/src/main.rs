@@ -72,6 +72,22 @@ unsafe extern "C" fn _start() {
   );
 }
 
+#[cfg(target_arch = "s390x")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "lgr %r2, %r15",       // save original sp (argc/argv) as arg
+    "aghi %r15, -160",     // allocate s390x mandatory stack frame
+    "lghi %r0, -16",
+    "ngr %r15, %r0",       // align stack to 16 bytes
+    "brasl %r14, {entry_rust}",
+    "lghi %r1, 1",         // SYS_exit
+    "svc 0",
+    entry_rust = sym entry_rust,
+  );
+}
+
 // Global allocator
 #[global_allocator]
 static ALLOCATOR: BumpAllocator = BumpAllocator::new();
