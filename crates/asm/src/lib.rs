@@ -5,7 +5,7 @@
 //! What do you mean I wasted two whole hours to make the program only 100µs
 //! faster?
 //!
-//! Supports `x86_64`, `aarch64`, and `riscv64` architectures.
+//! Supports `x86_64`, `aarch64`, `riscv64`, and `loongarch64` architectures.
 
 #![no_std]
 
@@ -13,10 +13,12 @@
 #[cfg(not(any(
   target_arch = "x86_64",
   target_arch = "aarch64",
-  target_arch = "riscv64"
+  target_arch = "riscv64",
+  target_arch = "loongarch64"
 )))]
 compile_error!(
-  "Unsupported architecture: only x86_64, aarch64, and riscv64 are supported"
+  "Unsupported architecture: only x86_64, aarch64, riscv64, and loongarch64 \
+   are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -28,6 +30,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "riscv64")]
 #[path = "riscv64.rs"]
+mod arch;
+#[cfg(target_arch = "loongarch64")]
+#[path = "loongarch64.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.

@@ -57,6 +57,21 @@ unsafe extern "C" fn _start() {
   );
 }
 
+#[cfg(target_arch = "loongarch64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "or $a0, $sp, $zero",
+    "bstrins.d $sp, $zero, 3, 0",
+    "bl {entry_rust}",
+    "or $a0, $a0, $zero",
+    "li.w $a7, 93",
+    "syscall 0",
+    entry_rust = sym entry_rust,
+  );
+}
+
 // Global allocator
 #[global_allocator]
 static ALLOCATOR: BumpAllocator = BumpAllocator::new();
