@@ -7,7 +7,7 @@ authors      = [ "NotAShelf <raf@notashelf.dev>" ]
 edition      = "2024"
 license      = "GPL-3.0"
 rust-version = "1.92.0"
-version      = "1.0.0"
+version      = "1.1.0"
 
 [workspace.dependencies]
 microfetch-alloc = { path = "./crates/alloc" }

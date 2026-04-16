@@ -328,7 +328,9 @@ person about current issues. To list a few, special thanks to:
 - [@sioodmy](https://github.com/sioodmy) - Being cute
 - [@mewoocat](https://github.com/mewoocat) - The awesome NixOS logo ASCII used
   in Microfetch
-- [@uzaaft](https://github.com/uzaaft) - Helping me going faster
+- [@uzaaft](https://github.com/uzaaft) - Helping me go faster
+- [@amaanq](https://github.com/amaanq) - Helping me go faster, smaller, and
+  prettier. Also the new logo and CPU field.
 
 Additionally a big thank you to everyone who used, talked about or criticized
 Microfetch. I might have missed your name here, but you have my thanks.
