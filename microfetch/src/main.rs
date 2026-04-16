@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![cfg_attr(target_arch = "powerpc64", feature(asm_experimental_arch))]
 
 extern crate alloc;
 
@@ -87,6 +88,57 @@ unsafe extern "C" fn _start() {
     entry_rust = sym entry_rust,
   );
 }
+
+// ELFv2 (ppc64le / new BE): entry point is code directly, no function
+// descriptor needed.
+#[cfg(all(target_arch = "powerpc64", target_abi = "elfv2"))]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    // Set up TOC (r2) for ELFv2 by computing from current PC
+    "bl 0f",
+    "0: mflr 12",
+    "addis 2, 12, .TOC. - 0b@ha",
+    "addi 2, 2, .TOC. - 0b@l",
+    // Save sp as first arg, set up stack frame
+    "mr 3, 1",
+    "clrrdi 1, 1, 4",
+    "stdu 1, -64(1)",
+    "bl {entry_rust}",
+    "nop",
+    "li 0, 1",
+    "sc",
+    entry_rust = sym entry_rust,
+  );
+}
+
+// On ELFv1, the ELF entry point must be a function descriptor
+// in .opd whose first word is the real code address. We emit both manually via
+// `global_asm` so the kernel reads the descriptor and jumps into `_start_impl`.
+#[cfg(all(target_arch = "powerpc64", target_abi = "elfv1"))]
+core::arch::global_asm!(
+  ".section .opd, \"aw\"",
+  ".balign 8",
+  ".globl _start",
+  ".type _start, @object",
+  ".size _start, 24",
+  "_start:",
+  "  .quad _start_impl",
+  "  .quad .TOC.@tocbase",
+  "  .quad 0",
+  ".previous",
+  ".text",
+  ".type _start_impl, @function",
+  "_start_impl:",
+  "  mr 3, 1",
+  "  clrrdi 1, 1, 4",
+  "  stdu 1, -64(1)",
+  "  bl entry_rust",
+  "  nop",
+  "  li 0, 1",
+  "  sc",
+);
 
 // Global allocator
 #[global_allocator]

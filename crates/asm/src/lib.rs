@@ -5,10 +5,11 @@
 //! What do you mean I wasted two whole hours to make the program only 100µs
 //! faster?
 //!
-//! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, and `s390x`
-//! architectures.
+//! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`, and
+//! `powerpc64` architectures.
 
 #![no_std]
+#![cfg_attr(target_arch = "powerpc64", feature(asm_experimental_arch))]
 
 // Ensure we're compiling for a supported architecture.
 #[cfg(not(any(
@@ -16,11 +17,12 @@
   target_arch = "aarch64",
   target_arch = "riscv64",
   target_arch = "loongarch64",
-  target_arch = "s390x"
+  target_arch = "s390x",
+  target_arch = "powerpc64"
 )))]
 compile_error!(
-  "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, and \
-   s390x are supported"
+  "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
+   s390x, and powerpc64 are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -38,6 +40,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "s390x")]
 #[path = "s390x.rs"]
+mod arch;
+#[cfg(target_arch = "powerpc64")]
+#[path = "powerpc64.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.

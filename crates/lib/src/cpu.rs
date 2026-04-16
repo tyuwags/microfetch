@@ -148,6 +148,7 @@ fn get_cpu_freq_mhz() -> Option<u32> {
     b"cpu MHz dynamic",
     b"cpu MHz static",
     b"CPU MHz",
+    b"clock",
   ] {
     if let Some(val) = extract_field(data, key) {
       // Parse integer part of the MHz value (e.g. "5200.00" -> 5200)

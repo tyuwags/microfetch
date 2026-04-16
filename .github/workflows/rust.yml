@@ -16,12 +16,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - riscv64gc-unknown-linux-gnu
-          - loongarch64-unknown-linux-gnu
-          - s390x-unknown-linux-gnu
+        include:
+          - target: x86_64-unknown-linux-gnu
+            toolchain: stable
+          - target: aarch64-unknown-linux-gnu
+            toolchain: stable
+          - target: riscv64gc-unknown-linux-gnu
+            toolchain: stable
+          - target: loongarch64-unknown-linux-gnu
+            toolchain: stable
+          - target: s390x-unknown-linux-gnu
+            toolchain: stable
+          # powerpc64 uses experimental asm features
+          - target: powerpc64le-unknown-linux-gnu
+            toolchain: nightly
+          - target: powerpc64-unknown-linux-gnu
+            toolchain: nightly
 
     steps:
     - name: "Checkout"
@@ -30,6 +40,7 @@ jobs:
     - name: "Setup Rust toolchain"
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
+        toolchain: ${{ matrix.toolchain }}
         target: ${{ matrix.target }}
         rustflags: ""
 
