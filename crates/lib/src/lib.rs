@@ -2,6 +2,7 @@
 extern crate alloc;
 
 pub mod colors;
+pub mod cpu;
 pub mod desktop;
 pub mod release;
 pub mod system;
@@ -23,6 +24,7 @@ pub use microfetch_asm::{
   sys_close,
   sys_open,
   sys_read,
+  sys_sched_getaffinity,
   sys_statfs,
   sys_sysinfo,
   sys_uname,
@@ -281,6 +283,8 @@ struct Fields {
   user_info:      String,
   os_name:        String,
   kernel_version: String,
+  cpu_name:       String,
+  cpu_cores:      String,
   shell:          String,
   uptime:         String,
   desktop:        String,
@@ -320,7 +324,7 @@ impl core::fmt::Write for StackWriter<'_> {
 }
 
 /// Custom logo art embedded at compile time via the `MICROFETCH_LOGO`
-/// environment variable. Set it to 9 newline-separated lines of ASCII/Unicode
+/// environment variable. Set it to 11 newline-separated lines of ASCII/Unicode
 /// art when building to replace the default NixOS logo:
 ///
 ///   `MICROFETCH_LOGO="$(cat my_logo.txt)"` cargo build --release
@@ -338,6 +342,8 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
     user_info,
     os_name,
     kernel_version,
+    cpu_name,
+    cpu_cores,
     shell,
     uptime,
     desktop,
@@ -349,7 +355,7 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
   let no_color = colors::is_no_color();
   let c = colors::Colors::new(no_color);
 
-  let mut buf = [0u8; 2048];
+  let mut buf = [0u8; 2560];
   let mut w = StackWriter::new(&mut buf);
 
   if CUSTOM_LOGO.is_empty() {
@@ -357,24 +363,25 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
     core::fmt::write(
       &mut w,
       format_args!(
-        "\n    {b}     ▟█▖    {cy}▝█▙ ▗█▛         {user_info} ~{rs}\n    {b}  \
-         ▗▄▄▟██▄▄▄▄▄{cy}▝█▙█▛  {b}▖       {cy}\u{F313}  {b}System{rs}        \
-         {os_name}\n    {b}  ▀▀▀▀▀▀▀▀▀▀▀▘{cy}▝██  {b}▟█▖      {cy}\u{E712}  \
-         {b}Kernel{rs}        {kernel_version}\n    {cy}     ▟█▛       \
-         {cy}▝█▘{b}▟█▛       {cy}\u{E795}  {b}Shell{rs}         {shell}\n    \
-         {cy}▟█████▛          {b}▟█████▛    {cy}\u{F017}  {b}Uptime{rs}        \
-         {uptime}\n    {cy}   ▟█▛{b}▗█▖       {b}▟█▛         {cy}\u{F2D2}  \
-         {b}Desktop{rs}       {desktop}\n    {cy}  ▝█▛  \
-         {b}██▖{cy}▗▄▄▄▄▄▄▄▄▄▄▄      {cy}\u{F035B}  {b}Memory{rs}        \
-         {memory_usage}\n    {cy}   ▝  {b}▟█▜█▖{cy}▀▀▀▀▀██▛▀▀▘      \
-         {cy}\u{F194E}  {b}Storage (/){rs}   {storage}\n    {b}     ▟█▘ ▜█▖    \
-         {cy}▝█▛         {cy}\u{E22B}  {b}Colors{rs}        {colors}\n\n",
+        "\n    {b}⠀⠀⠀⠀⠀⠀⢼⣿⣄⠀⠀⠀{cy}⠹⣿⣷⡀⠀⣠⣿⡧⠀⠀⠀⠀⠀⠀{rs}  {user_info} ~{rs}\
+         \n    {b}⠀⠀⠀⠀⠀⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠘⣿⣿⣴⣿⡿⠁⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F313}  {b}System{rs}       \u{E621} {os_name}\
+         \n    {b}⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡜{cy}⢿⣿⣟⠀⠀⠀{b}⢀⡄⠀⠀⠀{rs}  {cy}\u{E712}  {b}Kernel{rs}       \u{E621} {kernel_version}\
+         \n    {b}⠀⠀⠀⠉⠉⠉⠉{cy}⣩⣭⡭{b}⠉⠉⠉⠉⠉{cy}⠈⢿⣿⣆⠀{b}⢠⣿⣿⠂⠀⠀{rs}  {cy}\u{F2DB}  {b}CPU{rs}          \u{E621} {cpu_name}\
+         \n    {cy}⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⢻⡟{b}⣡⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F4BC}  {b}Topology{rs}     \u{E621} {cpu_cores}\
+         \n    {cy}⢸⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀{b}⣰⣿⣿⣿⣿⣿⣿⡇{rs}  {cy}\u{E795}  {b}Shell{rs}        \u{E621} {shell}\
+         \n    {cy}⠀⠀⠀⢠⣿⣿⢋{b}⣼⣧⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⡟⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F017}  {b}Uptime{rs}       \u{E621} {uptime}\
+         \n    {cy}⠀⠀⠠⣿⣿⠃⠀{b}⠹⣿⣷⡀{cy}⣀⣀⣀⣀⣀{b}⣚⣛⣋{cy}⣀⣀⣀⣀⠀⠀⠀{rs}  {cy}\u{F2D2}  {b}Desktop{rs}      \u{E621} {desktop}\
+         \n    {cy}⠀⠀⠀⠘⠁⠀⠀⠀{b}⣽⣿⣷⡜{cy}⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⠀⠀{rs}  {cy}\u{F035B}  {b}Memory{rs}       \u{E621} {memory_usage}\
+         \n    {b}⠀⠀⠀⠀⠀⠀⢀⣾⣿⠟⣿⣿⡄⠀⠀⠀{cy}⠹⣿⣷⡀⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{F194E}  {b}Storage (/){rs}  \u{E621} {storage}\
+         \n    {b}⠀⠀⠀⠀⠀⠀⢺⣿⠋⠀⠈⢿⣿⣆⠀⠀⠀{cy}⠙⣿⡗⠀⠀⠀⠀⠀⠀{rs}  {cy}\u{E22B}  {b}Colors{rs}       \u{E621} {colors}\n\n",
         b = c.blue,
         cy = c.cyan,
         rs = c.reset,
         user_info = user_info,
         os_name = os_name,
         kernel_version = kernel_version,
+        cpu_name = cpu_name,
+        cpu_cores = cpu_cores,
         shell = shell,
         uptime = uptime,
         desktop = desktop,
@@ -385,39 +392,41 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
     )
     .ok();
   } else {
-    // Custom logo is 9 lines from MICROFETCH_LOGO env var, one per info row.
-    // Lines beyond 9 are ignored; missing lines render as empty.
+    // Custom logo is 11 lines from MICROFETCH_LOGO env var, one per info row.
+    // Lines beyond 11 are ignored; missing lines render as empty.
     let mut lines = CUSTOM_LOGO.split('\n');
-    let logo_rows: [&str; 9] =
+    let logo_rows: [&str; 11] =
       core::array::from_fn(|_| lines.next().unwrap_or(""));
 
     // Row format mirrors the default logo path exactly.
-    let rows: [(&str, &str, &str, &str, &str); 9] = [
+    let rows: [(&str, &str, &str, &str, &str); 11] = [
       ("", "", user_info.as_str(), "        ", " ~"),
-      ("\u{F313}  ", "System", os_name.as_str(), "        ", ""),
+      ("\u{F313}  ", "System", os_name.as_str(), "       \u{E621} ", ""),
       (
         "\u{E712}  ",
         "Kernel",
         kernel_version.as_str(),
-        "        ",
+        "       \u{E621} ",
         "",
       ),
-      ("\u{E795}  ", "Shell", shell.as_str(), "         ", ""),
-      ("\u{F017}  ", "Uptime", uptime.as_str(), "        ", ""),
-      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "       ", ""),
+      ("\u{F2DB}  ", "CPU", cpu_name.as_str(), "          \u{E621} ", ""),
+      ("\u{F4BC}  ", "Topology", cpu_cores.as_str(), "     \u{E621} ", ""),
+      ("\u{E795}  ", "Shell", shell.as_str(), "        \u{E621} ", ""),
+      ("\u{F017}  ", "Uptime", uptime.as_str(), "       \u{E621} ", ""),
+      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "      \u{E621} ", ""),
       (
         "\u{F035B}  ",
         "Memory",
         memory_usage.as_str(),
-        "        ",
+        "       \u{E621} ",
         "",
       ),
-      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "   ", ""),
-      ("\u{E22B}  ", "Colors", colors.as_str(), "        ", ""),
+      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "  \u{E621} ", ""),
+      ("\u{E22B}  ", "Colors", colors.as_str(), "       \u{E621} ", ""),
     ];
 
     core::fmt::write(&mut w, format_args!("\n")).ok();
-    for i in 0..9 {
+    for i in 0..11 {
       let (icon, key, value, spacing, suffix) = rows[i];
       if key.is_empty() {
         // Row 1 has  no icon/key, just logo + user_info
@@ -534,6 +543,8 @@ pub unsafe fn run(argc: i32, argv: *const *const u8) -> Result<(), Error> {
     user_info:      system::get_username_and_hostname(&utsname),
     os_name:        release::get_os_pretty_name()?,
     kernel_version: release::get_system_info(&utsname),
+    cpu_name:       cpu::get_cpu_name(),
+    cpu_cores:      cpu::get_cpu_cores()?,
     shell:          system::get_shell(),
     desktop:        desktop::get_desktop_info(),
     uptime:         uptime::get_current()?,

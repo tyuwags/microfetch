@@ -731,6 +731,80 @@ pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
   }
 }
 
+/// Direct `sched_getaffinity(2)` syscall
+///
+/// # Returns
+///
+/// On success, the number of bytes written to the mask buffer (always a
+/// multiple of `sizeof(long)`). On error, a negative errno.
+///
+/// # Safety
+///
+/// The caller must ensure that `mask` points to a buffer of at least
+/// `mask_size` bytes.
+#[inline]
+pub unsafe fn sys_sched_getaffinity(
+  pid: i32,
+  mask_size: usize,
+  mask: *mut u8,
+) -> i32 {
+  #[cfg(target_arch = "x86_64")]
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "syscall",
+      in("rax") 204i64,  // __NR_sched_getaffinity
+      in("rdi") pid,
+      in("rsi") mask_size,
+      in("rdx") mask,
+      lateout("rax") ret,
+      lateout("rcx") _,
+      lateout("r11") _,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+
+  #[cfg(target_arch = "aarch64")]
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 123i64,  // __NR_sched_getaffinity
+      in("x0") pid,
+      in("x1") mask_size,
+      in("x2") mask,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+
+  #[cfg(target_arch = "riscv64")]
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "ecall",
+      in("a7") 123i64,  // __NR_sched_getaffinity
+      in("a0") pid,
+      in("a1") mask_size,
+      in("a2") mask,
+      lateout("a0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+}
+
 /// Direct syscall to exit the process
 ///
 /// # Safety
