@@ -140,6 +140,20 @@ core::arch::global_asm!(
   "  sc",
 );
 
+#[cfg(target_arch = "arm")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mov r0, sp",          // first arg = original sp (argc/argv)
+    "bic sp, sp, #7",      // align sp to 8 bytes (AAPCS)
+    "bl {entry_rust}",
+    "mov r7, #1",          // SYS_exit
+    "svc #0",
+    entry_rust = sym entry_rust,
+  );
+}
+
 // Global allocator
 #[global_allocator]
 static ALLOCATOR: BumpAllocator = BumpAllocator::new();
@@ -193,3 +207,14 @@ const extern "C" fn rust_eh_personality() {}
 extern "C" fn _Unwind_Resume() -> ! {
   unsafe { sys_exit(1) }
 }
+
+// compiler_builtins emits `.ARM.exidx` entries that reference these even
+// with panic=abort. libgcc/libunwind would normally resolve them; we're
+// nostdlib, so we stub them. They're never called.
+#[cfg(all(not(test), target_arch = "arm"))]
+#[unsafe(no_mangle)]
+extern "C" fn __aeabi_unwind_cpp_pr0() {}
+
+#[cfg(all(not(test), target_arch = "arm"))]
+#[unsafe(no_mangle)]
+extern "C" fn __aeabi_unwind_cpp_pr1() {}

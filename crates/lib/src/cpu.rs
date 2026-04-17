@@ -121,23 +121,64 @@ fn parse_num(data: &[u8], i: &mut usize) -> u32 {
   n
 }
 
+/// Build `/sys/devices/system/cpu/cpu{n}/cpufreq/cpuinfo_max_freq` into buf,
+/// returning the byte length written.
+fn format_cpufreq_path(buf: &mut [u8; 64], cpu: u32) -> usize {
+  const PREFIX: &[u8] = b"/sys/devices/system/cpu/cpu";
+  const SUFFIX: &[u8] = b"/cpufreq/cpuinfo_max_freq";
+  buf[..PREFIX.len()].copy_from_slice(PREFIX);
+  let mut i = PREFIX.len();
+  let mut tmp = [0u8; 3];
+  let mut n = cpu;
+  let mut digits = 0;
+  loop {
+    tmp[digits] = b'0' + (n % 10) as u8;
+    digits += 1;
+    n /= 10;
+    if n == 0 {
+      break;
+    }
+  }
+  while digits > 0 {
+    digits -= 1;
+    buf[i] = tmp[digits];
+    i += 1;
+  }
+  buf[i..i + SUFFIX.len()].copy_from_slice(SUFFIX);
+  i + SUFFIX.len()
+}
+
 /// Read CPU frequency in MHz. Tries sysfs first, then cpuinfo fields.
 fn get_cpu_freq_mhz() -> Option<u32> {
-  // Try sysfs cpuinfo_max_freq (in kHz)
-  let mut buf = [0u8; 32];
-  if let Ok(n) = read_file_fast(
-    "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq",
-    &mut buf,
-  ) {
+  // Read cpuinfo_max_freq across all CPUs (in kHz) and take the max so
+  // heterogeneous (big.LITTLE) topologies report the performance cluster.
+  let mut max_khz = 0u32;
+  let mut path = [0u8; 64];
+  for cpu in 0u32..64 {
+    let n = format_cpufreq_path(&mut path, cpu);
+    let p = match core::str::from_utf8(&path[..n]) {
+      Ok(s) => s,
+      Err(_) => continue,
+    };
+    let mut buf = [0u8; 32];
+    let Ok(m) = read_file_fast(p, &mut buf) else {
+      if cpu == 0 {
+        continue;
+      }
+      break;
+    };
     let mut khz = 0u32;
-    for &b in &buf[..n] {
+    for &b in &buf[..m] {
       if b.is_ascii_digit() {
         khz = khz * 10 + u32::from(b - b'0');
       }
     }
-    if khz > 0 {
-      return Some(khz / 1000);
+    if khz > max_khz {
+      max_khz = khz;
     }
+  }
+  if max_khz > 0 {
+    return Some(max_khz / 1000);
   }
   // Fall back to cpuinfo fields
   let mut buf2 = [0u8; 4096];
@@ -175,6 +216,30 @@ fn get_model_name() -> Option<String> {
   let n = read_file_fast("/proc/cpuinfo", &mut buf).ok()?;
   let data = &buf[..n];
 
+  let base = extract_name(data)?;
+  let mut name = base;
+  if let Some(mhz) = get_cpu_freq_mhz() {
+    name.push_str(" @ ");
+    // Round to nearest 0.01 GHz, then split so carries (e.g. 1999 MHz)
+    // roll into the integer part instead of overflowing the fraction.
+    let rounded_centesimal = (mhz + 5) / 10;
+    let ghz_int = rounded_centesimal / 100;
+    let ghz_frac = rounded_centesimal % 100;
+    write_u64(&mut name, u64::from(ghz_int));
+    name.push('.');
+    if ghz_frac < 10 {
+      name.push('0');
+    }
+    write_u64(&mut name, u64::from(ghz_frac));
+    name.push_str(" GHz");
+  }
+  Some(name)
+}
+
+/// Extract a human-readable CPU name. Tries cpuinfo fields first, then
+/// falls back to the device-tree `compatible` string on SoCs that don't
+/// expose a model through cpuinfo.
+fn extract_name(data: &[u8]) -> Option<String> {
   for key in &[
     b"model name" as &[u8],
     b"Model Name",
@@ -187,28 +252,34 @@ fn get_model_name() -> Option<String> {
     if let Some(val) = extract_field(data, key) {
       let trimmed = trim(val);
       if !trimmed.is_empty() {
-        let mut name = String::from(trimmed);
-        if let Some(mhz) = get_cpu_freq_mhz() {
-          name.push_str(" @ ");
-          // Round to nearest 0.01 GHz, then split so carries (e.g. 1999 MHz)
-          // roll into the integer part instead of overflowing the fraction.
-          let rounded_centesimal = (mhz + 5) / 10;
-          let ghz_int = rounded_centesimal / 100;
-          let ghz_frac = rounded_centesimal % 100;
-          write_u64(&mut name, u64::from(ghz_int));
-          name.push('.');
-          if ghz_frac < 10 {
-            name.push('0');
-          }
-          write_u64(&mut name, u64::from(ghz_frac));
-          name.push_str(" GHz");
-        }
-        return Some(name);
+        return Some(String::from(trimmed));
       }
     }
   }
+  parse_dt_compatible()
+}
 
-  None
+/// Parse the SoC name from `/sys/firmware/devicetree/base/compatible`.
+/// The file holds NUL-separated `vendor,model` strings from most-specific
+/// (board) to most-generic (SoC); we take the last entry and return just
+/// the model portion after the comma.
+fn parse_dt_compatible() -> Option<String> {
+  let mut buf = [0u8; 256];
+  let n = read_file_fast("/sys/firmware/devicetree/base/compatible", &mut buf)
+    .ok()?;
+  // Drop the terminating NUL so the rposition below locates the entry
+  // separator rather than the end-of-string marker.
+  let end = if n > 0 && buf[n - 1] == 0 { n - 1 } else { n };
+  let data = &buf[..end];
+  let start = data.iter().rposition(|&b| b == 0).map_or(0, |p| p + 1);
+  let entry = &data[start..];
+  let comma = entry.iter().position(|&b| b == b',')?;
+  let model = core::str::from_utf8(&entry[comma + 1..]).ok()?;
+  if model.is_empty() {
+    None
+  } else {
+    Some(String::from(model))
+  }
 }
 
 /// Extract value of first occurrence of `key` in cpuinfo.

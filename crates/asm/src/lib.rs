@@ -5,8 +5,8 @@
 //! What do you mean I wasted two whole hours to make the program only 100µs
 //! faster?
 //!
-//! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`, and
-//! `powerpc64` architectures.
+//! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
+//! `powerpc64`, and `arm` (armv7) architectures.
 
 #![no_std]
 #![cfg_attr(target_arch = "powerpc64", feature(asm_experimental_arch))]
@@ -18,11 +18,12 @@
   target_arch = "riscv64",
   target_arch = "loongarch64",
   target_arch = "s390x",
-  target_arch = "powerpc64"
+  target_arch = "powerpc64",
+  target_arch = "arm"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, and powerpc64 are supported"
+   s390x, powerpc64, and arm are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -43,6 +44,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "powerpc64")]
 #[path = "powerpc64.rs"]
+mod arch;
+#[cfg(target_arch = "arm")]
+#[path = "arm.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -277,7 +281,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
 /// offsets on both architectures. Only the fields needed for disk usage are
 /// declared; the remainder of the 120-byte struct is covered by `_pad`.
 #[repr(C)]
-#[cfg(not(target_arch = "s390x"))]
+#[cfg(not(any(target_arch = "s390x", target_arch = "arm")))]
 pub struct StatfsBuf {
   pub f_type:    i64,
   pub f_bsize:   i64,
@@ -313,6 +317,27 @@ pub struct StatfsBuf {
 
   #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
   pub _pad: [u32; 5],
+}
+
+/// on armv7 `statfs64(2)` has 32-bit word fields; see
+/// https://github.com/torvalds/linux/blob/v6.19/include/uapi/asm-generic/statfs.h
+#[repr(C)]
+#[cfg(target_arch = "arm")]
+pub struct StatfsBuf {
+  pub f_type:    u32,
+  pub f_bsize:   u32,
+  pub f_blocks:  u64,
+  pub f_bfree:   u64,
+  pub f_bavail:  u64,
+  pub f_files:   u64,
+  pub f_ffree:   u64,
+  pub f_fsid:    [i32; 2],
+  pub f_namelen: u32,
+  pub f_frsize:  u32,
+  pub f_flags:   u32,
+
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _pad: [u32; 4],
 }
 
 /// Direct `statfs(2)` syscall
@@ -384,6 +409,7 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
 /// The layout matches the kernel's `struct sysinfo` *exactly*:
 /// `mem_unit` ends at offset 108, then 4 bytes of implicit padding to 112.
 #[repr(C)]
+#[cfg(not(target_arch = "arm"))]
 pub struct SysInfo {
   pub uptime:    i64,
   pub loads:     [u64; 3],
@@ -402,6 +428,28 @@ pub struct SysInfo {
   pub mem_unit:  u32,
   // 4 bytes implicit trailing padding to reach 112 bytes total; no field
   // needed
+}
+
+/// on armv7 `__kernel_long_t` is 4 bytes; see
+/// https://github.com/torvalds/linux/blob/v6.19/include/uapi/linux/sysinfo.h
+#[repr(C)]
+#[cfg(target_arch = "arm")]
+pub struct SysInfo {
+  pub uptime:    i32,
+  pub loads:     [u32; 3],
+  pub totalram:  u32,
+  pub freeram:   u32,
+  pub sharedram: u32,
+  pub bufferram: u32,
+  pub totalswap: u32,
+  pub freeswap:  u32,
+  pub procs:     u16,
+  _pad:          u16,
+  pub totalhigh: u32,
+  pub freehigh:  u32,
+  pub mem_unit:  u32,
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _f:        [u8; 8],
 }
 
 /// Direct `sysinfo(2)` syscall

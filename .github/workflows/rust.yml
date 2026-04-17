@@ -32,6 +32,8 @@ jobs:
             toolchain: nightly
           - target: powerpc64-unknown-linux-gnu
             toolchain: nightly
+          - target: armv7-unknown-linux-gnueabihf
+            toolchain: stable
 
     steps:
     - name: "Checkout"
