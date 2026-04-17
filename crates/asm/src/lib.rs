@@ -6,10 +6,13 @@
 //! faster?
 //!
 //! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
-//! `powerpc64`, `arm` (armv7), and `riscv32` architectures.
+//! `powerpc64`, `arm` (armv7), `riscv32`, and `sparc64` architectures.
 
 #![no_std]
-#![cfg_attr(target_arch = "powerpc64", feature(asm_experimental_arch))]
+#![cfg_attr(
+  any(target_arch = "powerpc64", target_arch = "sparc64"),
+  feature(asm_experimental_arch)
+)]
 
 // Ensure we're compiling for a supported architecture.
 #[cfg(not(any(
@@ -20,11 +23,12 @@
   target_arch = "s390x",
   target_arch = "powerpc64",
   target_arch = "arm",
-  target_arch = "riscv32"
+  target_arch = "riscv32",
+  target_arch = "sparc64"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, and riscv32 are supported"
+   s390x, powerpc64, arm, riscv32, and sparc64 are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -51,6 +55,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "riscv32")]
 #[path = "riscv32.rs"]
+mod arch;
+#[cfg(target_arch = "sparc64")]
+#[path = "sparc64.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.

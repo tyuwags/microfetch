@@ -39,6 +39,9 @@ jobs:
             toolchain: nightly
             components: rust-src
             build_std: true
+          # sparc64 uses experimental asm features
+          - target: sparc64-unknown-linux-gnu
+            toolchain: nightly
 
     steps:
     - name: "Checkout"

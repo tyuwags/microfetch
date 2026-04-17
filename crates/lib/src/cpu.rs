@@ -207,6 +207,32 @@ fn get_cpu_freq_mhz() -> Option<u32> {
       }
     }
   }
+  // SPARC exposes its clock as `Cpu0ClkTck : <hex>`,
+  // which signifies ticks per second in hex.
+  if let Some(val) = extract_field(data, b"Cpu0ClkTck") {
+    let mut hz = 0u64;
+    let mut seen = false;
+    for &b in val.as_bytes() {
+      let d = match b {
+        b'0'..=b'9' => Some(u64::from(b - b'0')),
+        b'a'..=b'f' => Some(u64::from(b - b'a' + 10)),
+        b'A'..=b'F' => Some(u64::from(b - b'A' + 10)),
+        _ => None,
+      };
+      match d {
+        Some(d) => {
+          hz = hz * 16 + d;
+          seen = true;
+        },
+        None if seen => break,
+        None => {},
+      }
+    }
+    if hz > 0 {
+      #[allow(clippy::cast_possible_truncation)]
+      return Some((hz / 1_000_000) as u32);
+    }
+  }
   None
 }
 

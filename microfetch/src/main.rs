@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
-#![cfg_attr(target_arch = "powerpc64", feature(asm_experimental_arch))]
+#![cfg_attr(
+  any(target_arch = "powerpc64", target_arch = "sparc64"),
+  feature(asm_experimental_arch)
+)]
 
 extern crate alloc;
 
@@ -164,6 +167,28 @@ unsafe extern "C" fn _start() {
     "call {entry_rust}",
     "li a7, 93",           // SYS_exit
     "ecall",
+    entry_rust = sym entry_rust,
+  );
+}
+
+#[cfg(target_arch = "sparc64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    // SPARC v9: kernel sets %sp biased by -2047; argc is at
+    // %sp + 2047 + 128 (bias + 128-byte register save area).
+    // See glibc sysdeps/sparc/sparc64/start.S.
+    "mov %g0, %fp",
+    "add %sp, 2047+128, %o0",  // first arg = &argc
+    "add %sp, 2047, %sp",      // unbias
+    "sub %sp, 176, %sp",       // reserve register save area
+    "and %sp, -16, %sp",       // align
+    "sub %sp, 2047, %sp",      // rebias
+    "call {entry_rust}",
+    "nop",                     // delay slot
+    "mov 1, %g1",              // SYS_exit
+    "t 0x6d",
     entry_rust = sym entry_rust,
   );
 }
