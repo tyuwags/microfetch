@@ -7,7 +7,7 @@
 //!
 //! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
 //! `powerpc64`, `arm` (armv7), `riscv32`, `sparc64`, `mips64`, `x86` (i686),
-//! `powerpc` (ppc32), and `sparc` (sparc32) architectures.
+//! `powerpc` (ppc32), `sparc` (sparc32), and `mips` (O32) architectures.
 
 #![no_std]
 #![cfg_attr(
@@ -16,7 +16,8 @@
     target_arch = "powerpc",
     target_arch = "sparc64",
     target_arch = "sparc",
-    target_arch = "mips64"
+    target_arch = "mips64",
+    target_arch = "mips"
   ),
   feature(asm_experimental_arch)
 )]
@@ -35,12 +36,13 @@
   target_arch = "mips64",
   target_arch = "x86",
   target_arch = "powerpc",
-  target_arch = "sparc"
+  target_arch = "sparc",
+  target_arch = "mips"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, riscv32, sparc64, mips64, x86, powerpc, and sparc \
-   are supported"
+   s390x, powerpc64, arm, riscv32, sparc64, mips64, x86, powerpc, sparc, and \
+   mips are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -82,6 +84,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "sparc")]
 #[path = "sparc.rs"]
+mod arch;
+#[cfg(target_arch = "mips")]
+#[path = "mips.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -323,7 +328,8 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   target_arch = "x86",
   target_arch = "powerpc",
   target_arch = "sparc",
-  target_arch = "mips64"
+  target_arch = "mips64",
+  target_arch = "mips"
 )))]
 pub struct StatfsBuf {
   pub f_type:    i64,
@@ -387,6 +393,28 @@ pub struct StatfsBuf {
 
   #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
   pub _pad: [u32; 4],
+}
+
+/// mips (O32) uses `compat_statfs64`, same reordering with 32-bit words; see
+/// https://github.com/torvalds/linux/blob/v6.19/arch/mips/include/uapi/asm/statfs.h
+#[repr(C)]
+#[cfg(target_arch = "mips")]
+pub struct StatfsBuf {
+  pub f_type:    u32,
+  pub f_bsize:   u32,
+  pub f_frsize:  u32,
+  _pad:          u32,
+  pub f_blocks:  u64,
+  pub f_bfree:   u64,
+  pub f_files:   u64,
+  pub f_ffree:   u64,
+  pub f_bavail:  u64,
+  pub f_fsid:    [i32; 2],
+  pub f_namelen: u32,
+  pub f_flags:   u32,
+
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _pad2: [u32; 5],
 }
 
 /// mips reorders fields; see
@@ -484,7 +512,8 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
   target_arch = "riscv32",
   target_arch = "x86",
   target_arch = "powerpc",
-  target_arch = "sparc"
+  target_arch = "sparc",
+  target_arch = "mips"
 )))]
 pub struct SysInfo {
   pub uptime:    i64,
@@ -514,7 +543,8 @@ pub struct SysInfo {
   target_arch = "riscv32",
   target_arch = "x86",
   target_arch = "powerpc",
-  target_arch = "sparc"
+  target_arch = "sparc",
+  target_arch = "mips"
 ))]
 pub struct SysInfo {
   pub uptime:    i32,

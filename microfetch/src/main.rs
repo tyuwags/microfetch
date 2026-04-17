@@ -6,7 +6,8 @@
     target_arch = "powerpc",
     target_arch = "sparc64",
     target_arch = "sparc",
-    target_arch = "mips64"
+    target_arch = "mips64",
+    target_arch = "mips"
   ),
   feature(asm_experimental_arch)
 )]
@@ -278,6 +279,22 @@ extern "C" fn __atomic_load_1(ptr: *const u8, _order: i32) -> u8 {
 #[unsafe(no_mangle)]
 extern "C" fn __atomic_store_1(ptr: *mut u8, val: u8, _order: i32) {
   unsafe { core::ptr::write_volatile(ptr, val) }
+}
+
+#[cfg(target_arch = "mips")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "move $a0, $sp",       // first arg = original sp (argc/argv)
+    "addiu $sp, $sp, -24", // reserve 16-byte O32 shadow space + align
+    "jal {entry_rust}",
+    "nop",                 // delay slot
+    "move $a0, $v0",       // exit code = entry_rust return value
+    "li $v0, 4001",        // SYS_exit (4000 + 1)
+    "syscall",
+    entry_rust = sym entry_rust,
+  );
 }
 
 // Global allocator
