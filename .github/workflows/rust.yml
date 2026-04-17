@@ -47,6 +47,8 @@ jobs:
             toolchain: nightly
             components: rust-src
             build_std: true
+          - target: i686-unknown-linux-gnu
+            toolchain: stable
 
     steps:
     - name: "Checkout"

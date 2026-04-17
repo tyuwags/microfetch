@@ -33,6 +33,23 @@ unsafe extern "C" fn _start() {
   );
 }
 
+#[cfg(target_arch = "x86")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mov eax, esp",    // save original sp (argc/argv)
+    "and esp, -16",    // align stack to 16 bytes
+    "sub esp, 12",     // leave room so that the one-arg push keeps alignment
+    "push eax",        // arg: initial stack pointer
+    "call {entry_rust}",
+    "mov ebx, eax",    // exit code -> first syscall arg
+    "mov eax, 1",      // SYS_exit
+    "int 0x80",
+    entry_rust = sym entry_rust,
+  );
+}
+
 #[cfg(target_arch = "aarch64")]
 #[unsafe(no_mangle)]
 #[unsafe(naked)]

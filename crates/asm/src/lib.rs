@@ -6,8 +6,8 @@
 //! faster?
 //!
 //! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
-//! `powerpc64`, `arm` (armv7), `riscv32`, `sparc64`, and `mips64`
-//! architectures.
+//! `powerpc64`, `arm` (armv7), `riscv32`, `sparc64`, `mips64`, and `x86`
+//! (i686) architectures.
 
 #![no_std]
 #![cfg_attr(
@@ -30,11 +30,12 @@
   target_arch = "arm",
   target_arch = "riscv32",
   target_arch = "sparc64",
-  target_arch = "mips64"
+  target_arch = "mips64",
+  target_arch = "x86"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, riscv32, sparc64, and mips64 are supported"
+   s390x, powerpc64, arm, riscv32, sparc64, mips64, and x86 are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -67,6 +68,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "mips64")]
 #[path = "mips64.rs"]
+mod arch;
+#[cfg(target_arch = "x86")]
+#[path = "x86.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -305,6 +309,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   target_arch = "s390x",
   target_arch = "arm",
   target_arch = "riscv32",
+  target_arch = "x86",
   target_arch = "mips64"
 )))]
 pub struct StatfsBuf {
@@ -347,7 +352,7 @@ pub struct StatfsBuf {
 /// on armv7 `statfs64(2)` has 32-bit word fields; see
 /// https://github.com/torvalds/linux/blob/v6.19/include/uapi/asm-generic/statfs.h
 #[repr(C)]
-#[cfg(any(target_arch = "arm", target_arch = "riscv32"))]
+#[cfg(any(target_arch = "arm", target_arch = "riscv32", target_arch = "x86"))]
 pub struct StatfsBuf {
   pub f_type:    u32,
   pub f_bsize:   u32,
@@ -455,7 +460,11 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
 /// The layout matches the kernel's `struct sysinfo` *exactly*:
 /// `mem_unit` ends at offset 108, then 4 bytes of implicit padding to 112.
 #[repr(C)]
-#[cfg(not(any(target_arch = "arm", target_arch = "riscv32")))]
+#[cfg(not(any(
+  target_arch = "arm",
+  target_arch = "riscv32",
+  target_arch = "x86"
+)))]
 pub struct SysInfo {
   pub uptime:    i64,
   pub loads:     [u64; 3],
@@ -479,7 +488,7 @@ pub struct SysInfo {
 /// on armv7 `__kernel_long_t` is 4 bytes; see
 /// https://github.com/torvalds/linux/blob/v6.19/include/uapi/linux/sysinfo.h
 #[repr(C)]
-#[cfg(any(target_arch = "arm", target_arch = "riscv32"))]
+#[cfg(any(target_arch = "arm", target_arch = "riscv32", target_arch = "x86"))]
 pub struct SysInfo {
   pub uptime:    i32,
   pub loads:     [u32; 3],
