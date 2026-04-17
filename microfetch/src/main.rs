@@ -3,6 +3,7 @@
 #![cfg_attr(
   any(
     target_arch = "powerpc64",
+    target_arch = "powerpc",
     target_arch = "sparc64",
     target_arch = "mips64"
   ),
@@ -132,6 +133,22 @@ unsafe extern "C" fn _start() {
     "bl {entry_rust}",
     "nop",
     "li 0, 1",
+    "sc",
+    entry_rust = sym entry_rust,
+  );
+}
+
+// ppc32 has no function descriptors; entry is direct code like ELFv2.
+#[cfg(target_arch = "powerpc")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mr 3, 1",          // first arg = initial sp (argc/argv)
+    "clrrwi 1, 1, 4",   // align sp to 16 bytes
+    "stwu 1, -64(1)",   // reserve a frame with back-chain
+    "bl {entry_rust}",
+    "li 0, 1",          // SYS_exit
     "sc",
     entry_rust = sym entry_rust,
   );

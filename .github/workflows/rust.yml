@@ -49,6 +49,9 @@ jobs:
             build_std: true
           - target: i686-unknown-linux-gnu
             toolchain: stable
+          # powerpc uses experimental asm features
+          - target: powerpc-unknown-linux-gnu
+            toolchain: nightly
 
     steps:
     - name: "Checkout"
