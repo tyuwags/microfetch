@@ -19,6 +19,17 @@ compile_error!(
   "Unsupported architecture: only x86_64, aarch64, and riscv64 are supported"
 );
 
+// Per-arch syscall implementations live in their own module files.
+#[cfg(target_arch = "x86_64")]
+#[path = "x86_64.rs"]
+mod arch;
+#[cfg(target_arch = "aarch64")]
+#[path = "aarch64.rs"]
+mod arch;
+#[cfg(target_arch = "riscv64")]
+#[path = "riscv64.rs"]
+mod arch;
+
 /// Copies `n` bytes from `src` to `dest`.
 ///
 /// # Safety
@@ -165,62 +176,7 @@ unsafe extern "C" {
 #[inline]
 #[must_use]
 pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let fd: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 2i64,  // SYS_open
-      in("rdi") path,
-      in("rsi") flags,
-      in("rdx") 0i32,  // mode (not used for reading)
-      lateout("rax") fd,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      fd as i32
-    }
-  }
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let fd: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 56i64,  // SYS_openat
-      in("x0") -100i32,  // AT_FDCWD
-      in("x1") path,
-      in("x2") flags,
-      in("x3") 0i32,  // mode
-      lateout("x0") fd,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      fd as i32
-    }
-  }
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let fd: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 56i64,  // SYS_openat
-      in("a0") -100i32,  // AT_FDCWD
-      in("a1") path,
-      in("a2") flags,
-      in("a3") 0i32,  // mode
-      lateout("a0") fd,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      fd as i32
-    }
-  }
+  unsafe { arch::sys_open(path, flags) }
 }
 
 /// Direct syscall to read from a file descriptor
@@ -237,64 +193,7 @@ pub unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
 /// - `fd` is a valid open file descriptor
 #[inline]
 pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 0i64,  // SYS_read
-      in("rdi") fd,
-      in("rsi") buf,
-      in("rdx") count,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 63i64,  // SYS_read
-      in("x0") fd,
-      in("x1") buf,
-      in("x2") count,
-      lateout("x0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 63i64,  // SYS_read
-      in("a0") fd,
-      in("a1") buf,
-      in("a2") count,
-      lateout("a0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
+  unsafe { arch::sys_read(fd, buf, count) }
 }
 
 /// Direct syscall to write to a file descriptor
@@ -312,64 +211,7 @@ pub unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
 #[inline]
 #[must_use]
 pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 1i64,  // SYS_write
-      in("rdi") fd,
-      in("rsi") buf,
-      in("rdx") count,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 64i64,  // SYS_write
-      in("x0") fd,
-      in("x1") buf,
-      in("x2") count,
-      lateout("x0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 64i64,  // SYS_write
-      in("a0") fd,
-      in("a1") buf,
-      in("a2") count,
-      lateout("a0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as isize
-    }
-  }
+  unsafe { arch::sys_write(fd, buf, count) }
 }
 
 /// Direct syscall to close a file descriptor
@@ -380,55 +222,7 @@ pub unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
 #[inline]
 #[must_use]
 pub unsafe fn sys_close(fd: i32) -> i32 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 3i64,  // SYS_close
-      in("rdi") fd,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 57i64,  // SYS_close
-      in("x0") fd,
-      lateout("x0") ret,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 57i64,  // SYS_close
-      in("a0") fd,
-      lateout("a0") ret,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
+  unsafe { arch::sys_close(fd) }
 }
 
 /// Raw buffer for the `uname(2)` syscall.
@@ -459,57 +253,7 @@ pub struct UtsNameBuf {
 #[inline]
 #[allow(dead_code)]
 pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 63i64,  // SYS_uname
-      in("rdi") buf,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 160i64,  // SYS_uname
-      in("x0") buf,
-      lateout("x0") ret,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 160i64,  // SYS_uname
-      in("a0") buf,
-      lateout("a0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
+  unsafe { arch::sys_uname(buf) }
 }
 
 /// Raw buffer for the `statfs(2)` syscall.
@@ -549,61 +293,7 @@ pub struct StatfsBuf {
 /// - `buf` points to a valid `StatfsBuf`
 #[inline]
 pub unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 137i64,  // SYS_statfs
-      in("rdi") path,
-      in("rsi") buf,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 43i64,  // SYS_statfs
-      in("x0") path,
-      in("x1") buf,
-      lateout("x0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 43i64,  // SYS_statfs
-      in("a0") path,
-      in("a1") buf,
-      lateout("a0") ret,
-      options(nostack)
-    );
-
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
+  unsafe { arch::sys_statfs(path, buf) }
 }
 
 /// Read entire file using direct syscalls. This avoids libc overhead and can be
@@ -689,46 +379,7 @@ pub struct SysInfo {
 /// The caller must ensure that `info` points to a valid `SysInfo` buffer.
 #[inline]
 pub unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 99_i64, // __NR_sysinfo
-      in("rdi") info,
-      out("rcx") _,
-      out("r11") _,
-      lateout("rax") ret,
-      options(nostack)
-    );
-    ret
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 179_i64, // __NR_sysinfo
-      in("x0") info,
-      lateout("x0") ret,
-      options(nostack)
-    );
-    ret
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 179_i64, // __NR_sysinfo
-      in("a0") info,
-      lateout("a0") ret,
-      options(nostack)
-    );
-    ret
-  }
+  unsafe { arch::sys_sysinfo(info) }
 }
 
 /// Direct `sched_getaffinity(2)` syscall
@@ -748,61 +399,7 @@ pub unsafe fn sys_sched_getaffinity(
   mask_size: usize,
   mask: *mut u8,
 ) -> i32 {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "syscall",
-      in("rax") 204i64,  // __NR_sched_getaffinity
-      in("rdi") pid,
-      in("rsi") mask_size,
-      in("rdx") mask,
-      lateout("rax") ret,
-      lateout("rcx") _,
-      lateout("r11") _,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 123i64,  // __NR_sched_getaffinity
-      in("x0") pid,
-      in("x1") mask_size,
-      in("x2") mask,
-      lateout("x0") ret,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    let ret: i64;
-    core::arch::asm!(
-      "ecall",
-      in("a7") 123i64,  // __NR_sched_getaffinity
-      in("a0") pid,
-      in("a1") mask_size,
-      in("a2") mask,
-      lateout("a0") ret,
-      options(nostack)
-    );
-    #[allow(clippy::cast_possible_truncation)]
-    {
-      ret as i32
-    }
-  }
+  unsafe { arch::sys_sched_getaffinity(pid, mask_size, mask) }
 }
 
 /// Direct syscall to exit the process
@@ -812,33 +409,5 @@ pub unsafe fn sys_sched_getaffinity(
 /// This syscall never returns. The process will terminate immediately.
 #[inline]
 pub unsafe fn sys_exit(code: i32) -> ! {
-  #[cfg(target_arch = "x86_64")]
-  unsafe {
-    core::arch::asm!(
-      "syscall",
-      in("rax") 60i64,  // SYS_exit
-      in("rdi") code,
-      options(noreturn, nostack)
-    );
-  }
-
-  #[cfg(target_arch = "aarch64")]
-  unsafe {
-    core::arch::asm!(
-      "svc #0",
-      in("x8") 93i64,  // SYS_exit
-      in("x0") code,
-      options(noreturn, nostack)
-    );
-  }
-
-  #[cfg(target_arch = "riscv64")]
-  unsafe {
-    core::arch::asm!(
-      "ecall",
-      in("a7") 93i64,  // SYS_exit
-      in("a0") code,
-      options(noreturn, nostack)
-    );
-  }
+  unsafe { arch::sys_exit(code) }
 }

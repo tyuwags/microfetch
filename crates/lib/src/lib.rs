@@ -401,7 +401,13 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
     // Row format mirrors the default logo path exactly.
     let rows: [(&str, &str, &str, &str, &str); 11] = [
       ("", "", user_info.as_str(), "        ", " ~"),
-      ("\u{F313}  ", "System", os_name.as_str(), "       \u{E621} ", ""),
+      (
+        "\u{F313}  ",
+        "System",
+        os_name.as_str(),
+        "       \u{E621} ",
+        "",
+      ),
       (
         "\u{E712}  ",
         "Kernel",
@@ -409,11 +415,41 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
         "       \u{E621} ",
         "",
       ),
-      ("\u{F2DB}  ", "CPU", cpu_name.as_str(), "          \u{E621} ", ""),
-      ("\u{F4BC}  ", "Topology", cpu_cores.as_str(), "     \u{E621} ", ""),
-      ("\u{E795}  ", "Shell", shell.as_str(), "        \u{E621} ", ""),
-      ("\u{F017}  ", "Uptime", uptime.as_str(), "       \u{E621} ", ""),
-      ("\u{F2D2}  ", "Desktop", desktop.as_str(), "      \u{E621} ", ""),
+      (
+        "\u{F2DB}  ",
+        "CPU",
+        cpu_name.as_str(),
+        "          \u{E621} ",
+        "",
+      ),
+      (
+        "\u{F4BC}  ",
+        "Topology",
+        cpu_cores.as_str(),
+        "     \u{E621} ",
+        "",
+      ),
+      (
+        "\u{E795}  ",
+        "Shell",
+        shell.as_str(),
+        "        \u{E621} ",
+        "",
+      ),
+      (
+        "\u{F017}  ",
+        "Uptime",
+        uptime.as_str(),
+        "       \u{E621} ",
+        "",
+      ),
+      (
+        "\u{F2D2}  ",
+        "Desktop",
+        desktop.as_str(),
+        "      \u{E621} ",
+        "",
+      ),
       (
         "\u{F035B}  ",
         "Memory",
@@ -421,8 +457,20 @@ fn print_system_info(fields: &Fields) -> Result<(), Error> {
         "       \u{E621} ",
         "",
       ),
-      ("\u{F194E}  ", "Storage (/)", storage.as_str(), "  \u{E621} ", ""),
-      ("\u{E22B}  ", "Colors", colors.as_str(), "       \u{E621} ", ""),
+      (
+        "\u{F194E}  ",
+        "Storage (/)",
+        storage.as_str(),
+        "  \u{E621} ",
+        "",
+      ),
+      (
+        "\u{E22B}  ",
+        "Colors",
+        colors.as_str(),
+        "       \u{E621} ",
+        "",
+      ),
     ];
 
     core::fmt::write(&mut w, format_args!("\n")).ok();

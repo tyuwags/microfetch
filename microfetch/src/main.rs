@@ -6,9 +6,9 @@ extern crate alloc;
 use core::{arch::naked_asm, panic::PanicInfo};
 
 use microfetch_alloc::BumpAllocator;
+use microfetch_asm::{entry_rust, sys_exit, sys_write};
 // Re-export libc replacement functions from asm crate
 pub use microfetch_asm::{memcpy, memset, strlen};
-use microfetch_asm::{entry_rust, sys_exit, sys_write};
 
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
