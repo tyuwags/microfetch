@@ -5,6 +5,7 @@
     target_arch = "powerpc64",
     target_arch = "powerpc",
     target_arch = "sparc64",
+    target_arch = "sparc",
     target_arch = "mips64"
   ),
   feature(asm_experimental_arch)
@@ -245,6 +246,38 @@ unsafe extern "C" fn _start() {
     "syscall",
     entry_rust = sym entry_rust,
   );
+}
+
+#[cfg(target_arch = "sparc")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mov %g0, %fp",
+    "add %sp, 64, %o0",     // first arg = &argc (past the 64-byte window save)
+    "and %sp, -16, %sp",    // align sp to 16 bytes
+    "sub %sp, 64, %sp",     // reserve window save area
+    "call {entry_rust}",
+    "nop",                  // delay slot
+    "mov 1, %g1",           // SYS_exit (code already in %o0)
+    "ta 0x10",
+    entry_rust = sym entry_rust,
+  );
+}
+
+// SPARC V8 has no 1-byte CAS, so rustc emits calls to libatomic for byte
+// atomics. We're single-threaded with panic=abort, so a plain load/store is
+// already correct.
+#[cfg(all(not(test), target_arch = "sparc"))]
+#[unsafe(no_mangle)]
+extern "C" fn __atomic_load_1(ptr: *const u8, _order: i32) -> u8 {
+  unsafe { core::ptr::read_volatile(ptr) }
+}
+
+#[cfg(all(not(test), target_arch = "sparc"))]
+#[unsafe(no_mangle)]
+extern "C" fn __atomic_store_1(ptr: *mut u8, val: u8, _order: i32) {
+  unsafe { core::ptr::write_volatile(ptr, val) }
 }
 
 // Global allocator

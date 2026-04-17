@@ -7,7 +7,7 @@
 //!
 //! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
 //! `powerpc64`, `arm` (armv7), `riscv32`, `sparc64`, `mips64`, `x86` (i686),
-//! and `powerpc` (ppc32) architectures.
+//! `powerpc` (ppc32), and `sparc` (sparc32) architectures.
 
 #![no_std]
 #![cfg_attr(
@@ -15,6 +15,7 @@
     target_arch = "powerpc64",
     target_arch = "powerpc",
     target_arch = "sparc64",
+    target_arch = "sparc",
     target_arch = "mips64"
   ),
   feature(asm_experimental_arch)
@@ -33,12 +34,13 @@
   target_arch = "sparc64",
   target_arch = "mips64",
   target_arch = "x86",
-  target_arch = "powerpc"
+  target_arch = "powerpc",
+  target_arch = "sparc"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, riscv32, sparc64, mips64, x86, and powerpc are \
-   supported"
+   s390x, powerpc64, arm, riscv32, sparc64, mips64, x86, powerpc, and sparc \
+   are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -77,6 +79,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "powerpc")]
 #[path = "powerpc.rs"]
+mod arch;
+#[cfg(target_arch = "sparc")]
+#[path = "sparc.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -317,6 +322,7 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
   target_arch = "riscv32",
   target_arch = "x86",
   target_arch = "powerpc",
+  target_arch = "sparc",
   target_arch = "mips64"
 )))]
 pub struct StatfsBuf {
@@ -363,7 +369,8 @@ pub struct StatfsBuf {
   target_arch = "arm",
   target_arch = "riscv32",
   target_arch = "x86",
-  target_arch = "powerpc"
+  target_arch = "powerpc",
+  target_arch = "sparc"
 ))]
 pub struct StatfsBuf {
   pub f_type:    u32,
@@ -476,7 +483,8 @@ pub fn read_file_fast(path: &str, buffer: &mut [u8]) -> Result<usize, i32> {
   target_arch = "arm",
   target_arch = "riscv32",
   target_arch = "x86",
-  target_arch = "powerpc"
+  target_arch = "powerpc",
+  target_arch = "sparc"
 )))]
 pub struct SysInfo {
   pub uptime:    i64,
@@ -505,7 +513,8 @@ pub struct SysInfo {
   target_arch = "arm",
   target_arch = "riscv32",
   target_arch = "x86",
-  target_arch = "powerpc"
+  target_arch = "powerpc",
+  target_arch = "sparc"
 ))]
 pub struct SysInfo {
   pub uptime:    i32,
