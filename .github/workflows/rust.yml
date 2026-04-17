@@ -34,6 +34,11 @@ jobs:
             toolchain: nightly
           - target: armv7-unknown-linux-gnueabihf
             toolchain: stable
+          # riscv32 is tier-3
+          - target: riscv32gc-unknown-linux-gnu
+            toolchain: nightly
+            components: rust-src
+            build_std: true
 
     steps:
     - name: "Checkout"
@@ -43,8 +48,12 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: ${{ matrix.toolchain }}
-        target: ${{ matrix.target }}
+        components: ${{ matrix.components || '' }}
         rustflags: ""
+
+    - name: "Add Rust target"
+      if: ${{ !matrix.build_std }}
+      run: rustup target add ${{ matrix.target }}
 
     - name: "Make Mold the default linker"
       uses: rui314/setup-mold@v1
@@ -55,7 +64,9 @@ jobs:
         target: ${{ matrix.target }}
 
     - name: "Build"
-      run: cargo build --verbose
+      run: cargo build --verbose --target ${{ matrix.target }} ${{ matrix.build_std && '-Z build-std=core,alloc,panic_abort' || '' }}
 
+    # tier-3 targets have no prebuilt std and tests are arch-agnostic, so
+    # run them against the host toolchain instead of the cross target.
     - name: "Run tests"
-      run: cargo test --workspace --exclude microfetch --verbose
+      run: cargo test --workspace --exclude microfetch --verbose ${{ matrix.build_std && '--target x86_64-unknown-linux-gnu' || '' }}

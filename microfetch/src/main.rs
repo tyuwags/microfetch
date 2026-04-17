@@ -154,6 +154,20 @@ unsafe extern "C" fn _start() {
   );
 }
 
+#[cfg(target_arch = "riscv32")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "mv a0, sp",           // first arg = original sp (argc/argv)
+    "andi sp, sp, -16",    // align sp to 16 bytes
+    "call {entry_rust}",
+    "li a7, 93",           // SYS_exit
+    "ecall",
+    entry_rust = sym entry_rust,
+  );
+}
+
 // Global allocator
 #[global_allocator]
 static ALLOCATOR: BumpAllocator = BumpAllocator::new();
