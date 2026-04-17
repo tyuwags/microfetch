@@ -1,7 +1,11 @@
 #![no_std]
 #![no_main]
 #![cfg_attr(
-  any(target_arch = "powerpc64", target_arch = "sparc64"),
+  any(
+    target_arch = "powerpc64",
+    target_arch = "sparc64",
+    target_arch = "mips64"
+  ),
   feature(asm_experimental_arch)
 )]
 
@@ -189,6 +193,22 @@ unsafe extern "C" fn _start() {
     "nop",                     // delay slot
     "mov 1, %g1",              // SYS_exit
     "t 0x6d",
+    entry_rust = sym entry_rust,
+  );
+}
+
+#[cfg(target_arch = "mips64")]
+#[unsafe(no_mangle)]
+#[unsafe(naked)]
+unsafe extern "C" fn _start() {
+  naked_asm!(
+    "move $a0, $sp",       // first arg = original sp (argc/argv)
+    "daddiu $sp, $sp, -16",// reserve + keep 16-byte alignment (N64 ABI)
+    "jal {entry_rust}",
+    "nop",                 // delay slot
+    "move $a0, $v0",       // exit code = entry_rust return value
+    "li $v0, 5058",        // SYS_exit (5000 + 58)
+    "syscall",
     entry_rust = sym entry_rust,
   );
 }

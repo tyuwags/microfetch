@@ -6,11 +6,16 @@
 //! faster?
 //!
 //! Supports `x86_64`, `aarch64`, `riscv64`, `loongarch64`, `s390x`,
-//! `powerpc64`, `arm` (armv7), `riscv32`, and `sparc64` architectures.
+//! `powerpc64`, `arm` (armv7), `riscv32`, `sparc64`, and `mips64`
+//! architectures.
 
 #![no_std]
 #![cfg_attr(
-  any(target_arch = "powerpc64", target_arch = "sparc64"),
+  any(
+    target_arch = "powerpc64",
+    target_arch = "sparc64",
+    target_arch = "mips64"
+  ),
   feature(asm_experimental_arch)
 )]
 
@@ -24,11 +29,12 @@
   target_arch = "powerpc64",
   target_arch = "arm",
   target_arch = "riscv32",
-  target_arch = "sparc64"
+  target_arch = "sparc64",
+  target_arch = "mips64"
 )))]
 compile_error!(
   "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, riscv32, and sparc64 are supported"
+   s390x, powerpc64, arm, riscv32, sparc64, and mips64 are supported"
 );
 
 // Per-arch syscall implementations live in their own module files.
@@ -58,6 +64,9 @@ mod arch;
 mod arch;
 #[cfg(target_arch = "sparc64")]
 #[path = "sparc64.rs"]
+mod arch;
+#[cfg(target_arch = "mips64")]
+#[path = "mips64.rs"]
 mod arch;
 
 /// Copies `n` bytes from `src` to `dest`.
@@ -295,7 +304,8 @@ pub unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
 #[cfg(not(any(
   target_arch = "s390x",
   target_arch = "arm",
-  target_arch = "riscv32"
+  target_arch = "riscv32",
+  target_arch = "mips64"
 )))]
 pub struct StatfsBuf {
   pub f_type:    i64,
@@ -353,6 +363,27 @@ pub struct StatfsBuf {
 
   #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
   pub _pad: [u32; 4],
+}
+
+/// mips reorders fields; see
+/// https://github.com/torvalds/linux/blob/v6.19/arch/mips/include/uapi/asm/statfs.h
+#[repr(C)]
+#[cfg(target_arch = "mips64")]
+pub struct StatfsBuf {
+  pub f_type:    i64,
+  pub f_bsize:   i64,
+  pub f_frsize:  i64,
+  pub f_blocks:  u64,
+  pub f_bfree:   u64,
+  pub f_files:   u64,
+  pub f_ffree:   u64,
+  pub f_bavail:  u64,
+  pub f_fsid:    [i32; 2],
+  pub f_namelen: i64,
+  pub f_flags:   i64,
+
+  #[allow(clippy::pub_underscore_fields, reason = "This is not a public API")]
+  pub _pad: [i64; 5],
 }
 
 /// Direct `statfs(2)` syscall

@@ -190,6 +190,8 @@ fn get_cpu_freq_mhz() -> Option<u32> {
     b"cpu MHz static",
     b"CPU MHz",
     b"clock",
+    // BogoMIPS on MIPS is calibrated to the clock frequency (unlike x86).
+    b"BogoMIPS",
   ] {
     if let Some(val) = extract_field(data, key) {
       // Parse integer part of the MHz value (e.g. "5200.00" -> 5200)
@@ -270,6 +272,7 @@ fn extract_name(data: &[u8]) -> Option<String> {
     b"model name" as &[u8],
     b"Model Name",
     b"uarch",
+    b"cpu model",
     b"isa",
     b"cpu",
     b"machine",

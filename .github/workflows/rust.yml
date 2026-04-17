@@ -42,6 +42,11 @@ jobs:
           # sparc64 uses experimental asm features
           - target: sparc64-unknown-linux-gnu
             toolchain: nightly
+          # mips64 is tier-3 and uses experimental asm features
+          - target: mips64-unknown-linux-gnuabi64
+            toolchain: nightly
+            components: rust-src
+            build_std: true
 
     steps:
     - name: "Checkout"
