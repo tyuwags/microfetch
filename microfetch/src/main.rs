@@ -2,8 +2,6 @@
 #![no_main]
 #![cfg_attr(
   any(
-    target_arch = "powerpc64",
-    target_arch = "powerpc",
     target_arch = "sparc64",
     target_arch = "sparc",
     target_arch = "mips64",

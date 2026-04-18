@@ -12,8 +12,6 @@
 #![no_std]
 #![cfg_attr(
   any(
-    target_arch = "powerpc64",
-    target_arch = "powerpc",
     target_arch = "sparc64",
     target_arch = "sparc",
     target_arch = "mips64",
@@ -22,72 +20,24 @@
   feature(asm_experimental_arch)
 )]
 
-// Ensure we're compiling for a supported architecture.
-#[cfg(not(any(
-  target_arch = "x86_64",
-  target_arch = "aarch64",
-  target_arch = "riscv64",
-  target_arch = "loongarch64",
-  target_arch = "s390x",
-  target_arch = "powerpc64",
-  target_arch = "arm",
-  target_arch = "riscv32",
-  target_arch = "sparc64",
-  target_arch = "mips64",
-  target_arch = "x86",
-  target_arch = "powerpc",
-  target_arch = "sparc",
-  target_arch = "mips"
-)))]
-compile_error!(
-  "Unsupported architecture: only x86_64, aarch64, riscv64, loongarch64, \
-   s390x, powerpc64, arm, riscv32, sparc64, mips64, x86, powerpc, sparc, and \
-   mips are supported"
-);
-
 // Per-arch syscall implementations live in their own module files.
-#[cfg(target_arch = "x86_64")]
-#[path = "x86_64.rs"]
-mod arch;
-#[cfg(target_arch = "aarch64")]
-#[path = "aarch64.rs"]
-mod arch;
-#[cfg(target_arch = "riscv64")]
-#[path = "riscv64.rs"]
-mod arch;
-#[cfg(target_arch = "loongarch64")]
-#[path = "loongarch64.rs"]
-mod arch;
-#[cfg(target_arch = "s390x")]
-#[path = "s390x.rs"]
-mod arch;
-#[cfg(target_arch = "powerpc64")]
-#[path = "powerpc64.rs"]
-mod arch;
-#[cfg(target_arch = "arm")]
-#[path = "arm.rs"]
-mod arch;
-#[cfg(target_arch = "riscv32")]
-#[path = "riscv32.rs"]
-mod arch;
-#[cfg(target_arch = "sparc64")]
-#[path = "sparc64.rs"]
-mod arch;
-#[cfg(target_arch = "mips64")]
-#[path = "mips64.rs"]
-mod arch;
-#[cfg(target_arch = "x86")]
-#[path = "x86.rs"]
-mod arch;
-#[cfg(target_arch = "powerpc")]
-#[path = "powerpc.rs"]
-mod arch;
-#[cfg(target_arch = "sparc")]
-#[path = "sparc.rs"]
-mod arch;
-#[cfg(target_arch = "mips")]
-#[path = "mips.rs"]
-mod arch;
+core::cfg_select! {
+  target_arch = "x86_64"      => { #[path = "x86_64.rs"     ] mod arch;        }
+  target_arch = "aarch64"     => { #[path = "aarch64.rs"    ] mod arch;        }
+  target_arch = "riscv64"     => { #[path = "riscv64.rs"    ] mod arch;        }
+  target_arch = "loongarch64" => { #[path = "loongarch64.rs"] mod arch;        }
+  target_arch = "s390x"       => { #[path = "s390x.rs"      ] mod arch;        }
+  target_arch = "powerpc64"   => { #[path = "powerpc64.rs"  ] mod arch;        }
+  target_arch = "arm"         => { #[path = "arm.rs"        ] mod arch;        }
+  target_arch = "riscv32"     => { #[path = "riscv32.rs"    ] mod arch;        }
+  target_arch = "sparc64"     => { #[path = "sparc64.rs"    ] mod arch;        }
+  target_arch = "mips64"      => { #[path = "mips64.rs"     ] mod arch;        }
+  target_arch = "x86"         => { #[path = "x86.rs"        ] mod arch;        }
+  target_arch = "powerpc"     => { #[path = "powerpc.rs"    ] mod arch;        }
+  target_arch = "sparc"       => { #[path = "sparc.rs"      ] mod arch;        }
+  target_arch = "mips"        => { #[path = "mips.rs"       ] mod arch;        }
+  _                           => { compile_error!("Unsupported architecture"); }
+}
 
 /// Copies `n` bytes from `src` to `dest`.
 ///
