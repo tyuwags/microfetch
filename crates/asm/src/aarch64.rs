@@ -1,0 +1,164 @@
+//! Syscall implementations for `aarch64`.
+
+use super::{StatfsBuf, SysInfo, UtsNameBuf};
+
+pub(super) unsafe fn sys_open(path: *const u8, flags: i32) -> i32 {
+  unsafe {
+    let fd: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 56i64,  // SYS_openat
+      in("x0") -100i32,  // AT_FDCWD
+      in("x1") path,
+      in("x2") flags,
+      in("x3") 0i32,  // mode
+      lateout("x0") fd,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      fd as i32
+    }
+  }
+}
+
+pub(super) unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> isize {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 63i64,  // SYS_read
+      in("x0") fd,
+      in("x1") buf,
+      in("x2") count,
+      lateout("x0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
+  }
+}
+
+pub(super) unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> isize {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 64i64,  // SYS_write
+      in("x0") fd,
+      in("x1") buf,
+      in("x2") count,
+      lateout("x0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as isize
+    }
+  }
+}
+
+pub(super) unsafe fn sys_close(fd: i32) -> i32 {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 57i64,  // SYS_close
+      in("x0") fd,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+}
+
+pub(super) unsafe fn sys_uname(buf: *mut UtsNameBuf) -> i32 {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 160i64,  // SYS_uname
+      in("x0") buf,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+}
+
+pub(super) unsafe fn sys_statfs(path: *const u8, buf: *mut StatfsBuf) -> i32 {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 43i64,  // SYS_statfs
+      in("x0") path,
+      in("x1") buf,
+      lateout("x0") ret,
+      options(nostack)
+    );
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+}
+
+pub(super) unsafe fn sys_sysinfo(info: *mut SysInfo) -> i64 {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 179_i64, // __NR_sysinfo
+      in("x0") info,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    ret
+  }
+}
+
+pub(super) unsafe fn sys_sched_getaffinity(
+  pid: i32,
+  mask_size: usize,
+  mask: *mut u8,
+) -> i32 {
+  unsafe {
+    let ret: i64;
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 123i64,  // __NR_sched_getaffinity
+      in("x0") pid,
+      in("x1") mask_size,
+      in("x2") mask,
+      lateout("x0") ret,
+      options(nostack)
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    {
+      ret as i32
+    }
+  }
+}
+
+pub(super) unsafe fn sys_exit(code: i32) -> ! {
+  unsafe {
+    core::arch::asm!(
+      "svc #0",
+      in("x8") 93i64,  // SYS_exit
+      in("x0") code,
+      options(noreturn, nostack)
+    );
+  }
+}
