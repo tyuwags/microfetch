@@ -1,13 +1,20 @@
 {
   lib,
-  rustPlatform,
+  makeRustPlatform,
+  rust-bin,
   llvm,
 }: let
   pname = "microfetch";
   toml = (lib.importTOML ../Cargo.toml).workspace.package;
   inherit (toml) version;
+
+  toolchain = rust-bin.stable.latest;
+  rustWithToolchain = makeRustPlatform {
+    cargo = toolchain.minimal;
+    rustc = toolchain.minimal;
+  };
 in
-  rustPlatform.buildRustPackage.override {inherit (llvm) stdenv;} {
+  rustWithToolchain.buildRustPackage.override {inherit (llvm) stdenv;} {
     inherit pname version;
     src = let
       fs = lib.fileset;
@@ -16,9 +23,9 @@ in
       fs.toSource {
         root = s;
         fileset = fs.unions [
+          (s + /.cargo)
           (s + /crates)
           (s + /microfetch)
-          (s + /.cargo)
           (s + /scripts/ld-wrapper)
           (s + /Cargo.lock)
           (s + /Cargo.toml)
