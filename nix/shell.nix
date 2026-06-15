@@ -4,11 +4,10 @@
   rustc,
   mold,
   clang,
-  rust-analyzer-unwrapped,
+  rust-analyzer,
   rustfmt,
   clippy,
   taplo,
-  rustPlatform,
   gnuplot,
 }:
 mkShell {
@@ -20,13 +19,11 @@ mkShell {
     mold
     clang
 
-    rust-analyzer-unwrapped
+    rust-analyzer
     (rustfmt.override {asNightly = true;})
     clippy
     taplo
 
     gnuplot # for Criterion.rs plots
   ];
-
-  env.RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
 }
