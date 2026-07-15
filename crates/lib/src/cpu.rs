@@ -255,6 +255,10 @@ fn get_model_name() -> Option<String> {
   let base = extract_name(data)?;
   let mut name = base;
   if let Some(mhz) = get_cpu_freq_mhz() {
+    if let Some(at) = name.find(" @ ") {
+      name.truncate(at);
+    }
+    
     name.push_str(" @ ");
     // Round to nearest 0.01 GHz, then split so carries (e.g. 1999 MHz)
     // roll into the integer part instead of overflowing the fraction.
@@ -340,12 +344,7 @@ fn extract_field<'a>(data: &'a [u8], key: &[u8]) -> Option<&'a str> {
         while p < line.len() && line[p] == b' ' {
           p += 1;
         }
-        //remove the frequency in model name as its resolved later
-        let mut hz = p+1;
-        while hz < line.len() && line[hz] != b'@' {
-            hz += 1;
-        }
-        return core::str::from_utf8(&line[p..hz-1]).ok();
+        return core::str::from_utf8(&line[p..]).ok();
       }
     }
 
